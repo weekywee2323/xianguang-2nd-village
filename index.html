@@ -9,27 +9,39 @@
   憲光二村：門牌故事 — 遊戲化眷村體驗（畢業論文用原型）
 
   目前完成的畫面清單（currentScreen 對應值）：
+    第一關：門牌迷宮
     0. cover       封面畫面（標題、暱稱輸入、門牌造型「開始遊戲」按鈕）
     1. cutscene1   開場過場（跌進照片 / 附身橋段）
     2. dialogue    333系統教學對話
-    3. map         畫面3：探索地圖／門牌迷宮（本關核心玩法）
-    4. ending      畫面4：小結局過場（第一關 完）
+    3. map         探索地圖／門牌迷宮（本關核心玩法，也是關卡間的樞紐畫面）
+    4. ending      第一關小結局過場，按「繼續」進入第二關
+
+    第二關：92號龔家
+    5. cutscene2   92號門口過渡（遇見龔家阿姨）
+    6. dialogue2   龔家對話（333與阿姨交錯講話）
+    7. puzzle      滑行式方塊謎題（本關核心玩法，點選方塊+方向鍵滑到底，三階段各自獨立佈局）
+    8. reveal      發現線索過場，「繼續前進」回到畫面3，92號解鎖為已完成
 
   圖片檔案（請放在與本 HTML 同一資料夾）：
-    cover_title.png           封面背景圖（畫面0）
-    bg_gate.png                門牌牆背景（畫面3）
-    avatar_333.png              333 系統頭像（畫面2）
-    avatar_xiaojuan.png         小娟立繪（畫面1，第11句起 / 第2幕前景）
-    scene_grandpa_room.png      爺爺房間場景圖（畫面1，第4~7句淡入淡出）
-    photo_old.png               老照片特寫（畫面1，第5~7句淡入，第8句閃白時淡出）
-    scene_alley_fall.png        跌落後的巷弄背景（畫面1，第10句起鋪滿背景直到畫面1結束）
-    scene_confused_hands.png    疑惑地看著自己的手（畫面1，第12句置中疊加顯示）
-    bg_333_dialogue.png         333系統對話背景（畫面2，從開始鋪滿到進入畫面3前淡出）
+    cover_title.png             封面背景圖（畫面0）
+    bg_gate.png                  門牌牆背景（畫面3）
+    avatar_333.png                333 系統頭像（畫面2、畫面6）
+    avatar_xiaojuan.png           小娟立繪（畫面1，第11句起 / 第2幕前景）
+    scene_grandpa_room.png        爺爺房間場景圖（畫面1，第4~7句淡入淡出）
+    photo_old.png                 老照片特寫（畫面1，第5~7句淡入，第8句閃白時淡出）
+    scene_alley_fall.png          跌落後的巷弄背景（畫面1，第10句起鋪滿背景直到畫面1結束）
+    scene_confused_hands.png      疑惑地看著自己的手（畫面1，第12句置中疊加顯示）
+    bg_333_dialogue.png           333系統對話背景（畫面2，從開始鋪滿到進入畫面3前淡出）
+    bg_gong_exterior.png          92號門口外觀背景（畫面5）
+    avatar_gong_auntie.png        龔家阿姨頭像（畫面6）
+    bg_gong_house.png             龔家屋內背景（畫面7，拼圖棋盤疊加在上面）
+    reveal_carved_name.png        牆角刻字特寫（畫面8）
   音檔：bgm_main.mp3（背景音樂，loop播放，音量依劇情漸變）
   所有 <img>／<audio> 皆有 onerror 容錯，缺檔不會卡住流程。
 
   之後擴充建議：
-    - 第二關可以新增 currentScreen = 'chapter2' 並在 showScreen() 註冊
+    - 第三關可以新增 currentScreen = 'chapter3' 並在畫面8的 finishLevel2()
+      裡接上新的過場，取代目前「第二關 完，後續關卡開發中...」的提示文字
     - 若要存檔/讀取進度，可在 switchTo() 內加入 localStorage
   =========================================================
 -->
@@ -609,6 +621,19 @@
     background: rgba(31, 58, 95, 0.85);
   }
 
+  /* 手機橫向時畫面很矮，門牌牆改用手機專用的寬鬆佈局，並放大點擊區域方便手指點擊 */
+  @media (max-height: 500px) {
+    .plate {
+      min-width: 46px;
+      min-height: 38px;
+      padding: 8px 8px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+
   #map-hint-box {
     min-height: 54px;
     background: var(--dark-panel);
@@ -704,6 +729,351 @@
     margin-top: 26px;
     font-size: 0.75rem;
     opacity: 0.55;
+  }
+
+  #ending-continue-btn {
+    margin-top: 10px;
+    background: var(--accent-blue);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 22px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+
+  #ending-continue-btn:hover {
+    transform: scale(1.05);
+  }
+
+  /* ---------- 畫面5：92號門口過渡 ---------- */
+  #screen-cutscene2 {
+    background-color: #3d3226;
+    color: #f2f2f2;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 24px 44px 36px;
+    cursor: pointer;
+    text-align: center;
+  }
+
+  #cs2-bg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+  }
+
+  #cutscene2-content {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+  }
+
+  .cutscene-text-box.speaker-auntie {
+    color: #f0c419;
+  }
+
+  /* ---------- 畫面6：龔家對話 ---------- */
+  #screen-dialogue2 {
+    background: linear-gradient(180deg, #d9c19a 0%, #c9a877 100%);
+    justify-content: flex-end;
+    padding: 20px;
+    cursor: pointer;
+  }
+
+  #dlg2-name {
+    font-size: 0.85rem;
+    color: var(--accent-gold);
+    font-weight: bold;
+  }
+
+  #dlg2-name.speaker-auntie {
+    color: #ffd699;
+  }
+
+  .dlg2-avatar-wrap {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: var(--accent-gold);
+    box-shadow: 0 0 10px 2px rgba(240, 196, 25, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: avatar-333-pulse 1.6s ease-in-out infinite;
+  }
+
+  .dlg2-avatar-wrap.auntie {
+    background: #b7885a;
+    box-shadow: 0 0 8px 2px rgba(183, 136, 90, 0.6);
+    animation: none;
+  }
+
+  .dlg2-avatar-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  /* ---------- 畫面7：華容道拼圖 ---------- */
+  #screen-puzzle {
+    background-color: #6b5a44;
+    padding: 14px;
+    gap: 8px;
+  }
+
+  #puzzle-bg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+  }
+
+  #puzzle-shade {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(10, 8, 6, 0.35);
+    z-index: 1;
+  }
+
+  #puzzle-header {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    color: #fff;
+  }
+
+  #puzzle-header .puzzle-title {
+    font-size: 1.2rem;
+    font-weight: bold;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.7);
+  }
+
+  #puzzle-header .puzzle-stage-label {
+    font-size: 0.8rem;
+    color: var(--accent-gold);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+  }
+
+  #puzzle-hint {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    color: #f3e6d0;
+    font-size: 0.78rem;
+    opacity: 0.85;
+  }
+
+  #puzzle-toast {
+    position: relative;
+    z-index: 3;
+    margin: 0 auto;
+    max-width: 320px;
+    text-align: center;
+    background: rgba(10, 8, 6, 0.75);
+    color: #fff;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  #puzzle-toast.show {
+    opacity: 1;
+  }
+
+  #puzzle-stage {
+    position: relative;
+    z-index: 2;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #puzzle-board-wrap {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+
+  #puzzle-board {
+    position: relative;
+    width: 300px;
+    height: 300px;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.45) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.45) 1px, transparent 1px);
+    background-size: 60px 60px;
+    border: 2px solid rgba(255,255,255,0.6);
+    border-radius: 4px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+    transition: opacity 0.6s ease;
+  }
+
+  #puzzle-board.fadeout {
+    opacity: 0;
+  }
+
+  .puzzle-exit-cell {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    box-sizing: border-box;
+    border: 2px solid #fff6c9;
+    box-shadow: 0 0 10px 3px rgba(255, 246, 201, 0.8) inset, 0 0 10px 3px rgba(255, 246, 201, 0.6);
+    animation: puzzle-exit-glow 1.6s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  @keyframes puzzle-exit-glow {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+  }
+
+  .puzzle-block {
+    position: absolute;
+    box-sizing: border-box;
+    border: 1px solid rgba(0,0,0,0.35);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    cursor: pointer;
+    user-select: none;
+    z-index: 2;
+    transition: left 0.15s ease, top 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .puzzle-block.selected {
+    box-shadow: 0 0 0 3px #fff6c9, 0 4px 10px rgba(0,0,0,0.5);
+    z-index: 4;
+  }
+
+  .puzzle-block.flash {
+    animation: puzzle-block-flash 0.6s ease 2;
+  }
+
+  @keyframes puzzle-block-flash {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.8); }
+  }
+
+  .block-bed { background: #8fb8d8; }
+  .block-wardrobe { background: #5a4530; }
+  .block-table { background: #c97a3d; }
+  .block-box { background: #e8d3a0; color: #3d3226; text-shadow: none; }
+  .block-bunkbed { background: #2c3e50; }
+  .block-toy { background: #4caf6a; }
+
+  #puzzle-dpad {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: repeat(3, 42px);
+    grid-template-rows: repeat(3, 42px);
+    gap: 4px;
+  }
+
+  #puzzle-dpad button {
+    background: rgba(10, 8, 6, 0.6);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.35);
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+
+  #puzzle-dpad button:active {
+    background: rgba(240, 196, 25, 0.6);
+  }
+
+  #dpad-up { grid-row: 1; grid-column: 2; }
+  #dpad-left { grid-row: 2; grid-column: 1; }
+  #dpad-right { grid-row: 2; grid-column: 3; }
+  #dpad-down { grid-row: 3; grid-column: 2; }
+
+  #puzzle-restart-btn {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+    background: rgba(10, 8, 6, 0.6);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.35);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+
+  /* ---------- 畫面8：發現線索 ---------- */
+  #screen-reveal {
+    background-color: #2a1d12;
+    color: #f3e6d0;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 28px;
+    gap: 14px;
+  }
+
+  #reveal-img {
+    width: 300px;
+    max-width: 70%;
+    border-radius: 4px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+    opacity: 0;
+    transition: opacity 0.9s ease;
+  }
+
+  #reveal-img.show {
+    opacity: 1;
+  }
+
+  #screen-reveal .cutscene-text-box {
+    margin-top: 4px;
+  }
+
+  #reveal-continue-btn {
+    display: none;
+    margin-top: 6px;
+    background: var(--accent-blue);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 22px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+
+  #reveal-continue-btn:hover {
+    transform: scale(1.05);
+  }
+
+  .plate.plate-found {
+    box-shadow: 0 0 0 2px #fff6c9, 0 0 10px 3px rgba(255, 246, 201, 0.7);
   }
 </style>
 </head>
@@ -815,7 +1185,77 @@
     <p>（第一關 完）</p>
     <div class="memory-fragment-icon"></div>
     <div class="memory-fragment-label">獲得記憶碎片：門牌的秘密</div>
-    <div class="ending-footer">這是第一關的原型，後續關卡開發中...</div>
+    <button id="ending-continue-btn" onclick="goToLevel2()">繼續</button>
+  </div>
+
+  <!-- 畫面5：92號門口過渡 -->
+  <div class="screen" id="screen-cutscene2">
+    <img id="cs2-bg" src="bg_gong_exterior.png" alt=""
+         onerror="this.style.display='none'">
+    <div id="cutscene2-content">
+      <div class="cutscene-text-box" id="cutscene2-text">
+        <span class="line-icon" id="cutscene2-icon"></span>
+        <span id="cutscene2-content-text"></span>
+      </div>
+      <div class="continue-hint">▼ 點擊畫面或按空白鍵繼續</div>
+    </div>
+  </div>
+
+  <!-- 畫面6：龔家對話 -->
+  <div class="screen" id="screen-dialogue2">
+    <div class="dialogue-box">
+      <div class="dialogue-header">
+        <div id="avatar-333-wrap-2" class="dlg2-avatar-wrap">
+          <img id="dlg2-avatar-img" src="avatar_333.png" alt=""
+               onerror="this.style.display='none';">
+        </div>
+        <div class="dialogue-name" id="dlg2-name">引導系統 333</div>
+      </div>
+      <div class="dialogue-text" id="dialogue2-text">
+        <span class="line-icon" id="dialogue2-icon"></span>
+        <span id="dialogue2-content-text"></span>
+      </div>
+      <div class="dialogue-hint">▼ 點擊繼續</div>
+    </div>
+  </div>
+
+  <!-- 畫面7：滑行式方塊謎題 -->
+  <div class="screen" id="screen-puzzle">
+    <img id="puzzle-bg" src="bg_gong_house.png" alt=""
+         onerror="this.style.display='none'; document.getElementById('screen-puzzle').style.backgroundColor='#6b5a44';">
+    <div id="puzzle-shade"></div>
+    <button id="puzzle-restart-btn" onclick="restartPuzzleStage()">重新開始本階段</button>
+    <div id="puzzle-header">
+      <div class="puzzle-title">整理龔家</div>
+      <div class="puzzle-stage-label" id="puzzle-stage-label">第 1 / 3 階段</div>
+    </div>
+    <div id="puzzle-hint">先點選方塊，再點方向鍵讓它一路滑到底，把「木箱」滑進發光的出口</div>
+    <div id="puzzle-toast"></div>
+    <div id="puzzle-stage">
+      <div id="puzzle-board-wrap">
+        <div id="puzzle-board"></div>
+        <div id="puzzle-dpad">
+          <button id="dpad-up" onclick="slideSelected(0,-1)">▲</button>
+          <button id="dpad-left" onclick="slideSelected(-1,0)">◀</button>
+          <button id="dpad-right" onclick="slideSelected(1,0)">▶</button>
+          <button id="dpad-down" onclick="slideSelected(0,1)">▼</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 畫面8：發現線索 -->
+  <div class="screen" id="screen-reveal">
+    <img id="reveal-img" src="reveal_carved_name.png" alt=""
+         onerror="this.style.display='none'">
+    <div class="cutscene-text-box" id="reveal-text">
+      <span class="line-icon" id="reveal-icon"></span>
+      <span id="reveal-content-text"></span>
+    </div>
+    <div class="continue-hint" id="reveal-continue-hint">▼ 點擊畫面或按空白鍵繼續</div>
+    <div class="memory-fragment-icon" id="reveal-fragment-icon" style="display:none;"></div>
+    <div class="memory-fragment-label" id="reveal-fragment-label" style="display:none;">獲得記憶碎片：牆角的刻字</div>
+    <button id="reveal-continue-btn" onclick="finishLevel2()">繼續前進</button>
   </div>
 
 </div>
@@ -1141,7 +1581,11 @@
     }
   }
 
+  var cs1Finishing = false;
+
   function finishCutscene1() {
+    if (cs1Finishing) return;
+    cs1Finishing = true;
     var screenEl = document.getElementById('screen-cutscene1');
     screenEl.classList.add('cs1-fadeout');
     setTimeout(function () {
@@ -1156,6 +1600,9 @@
 
   function advanceCutscene1() {
     startBgm();
+    if (cs1Finishing) {
+      return;
+    }
     if (skipTyping(cs1TypeState)) {
       return;
     }
@@ -1178,6 +1625,14 @@
       e.preventDefault();
       if (currentScreen === 'cutscene1') advanceCutscene1();
       else if (currentScreen === 'dialogue') advanceDialogue();
+      else if (currentScreen === 'cutscene2') advanceCutscene2();
+      else if (currentScreen === 'dialogue2') advanceDialogue2();
+      else if (currentScreen === 'reveal') advanceReveal();
+    } else if (currentScreen === 'puzzle') {
+      if (e.key === 'ArrowUp') { e.preventDefault(); slideSelected(0, -1); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); slideSelected(0, 1); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); slideSelected(-1, 0); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); slideSelected(1, 0); }
     }
   });
 
@@ -1187,8 +1642,10 @@
     { text: '你好，我是引導系統333。', icon: '🤖' },
     { text: '別緊張，我知道你現在腦中有很多問號，我會盡量解釋清楚。', icon: '💬' },
     { text: '現在的時間是民國六十幾年，地點是憲光二村——沒錯，就是你校外教學去過的那個地方，只是現在它還沒變成歷史園區，是真的有人住在這裡的樣子。', icon: '📍' },
-    { text: '你現在的身體，屬於一個叫『孔麗娟』的女孩，她本來就住在這裡。', icon: '👤' },
-    { text: '至於你為什麼會在這裡：你爺爺過世前，透過一個特殊的申請管道，用他自己的方式，換來了讓你回到這個年代的機會。', icon: '🗝️' },
+    { text: '你現在的身體，屬於一個叫『陳品娟』的女孩，小名剛好也叫小娟——算是老天爺給你的一點方便。', icon: '👤' },
+    { text: '她是孔家的遠房表妹，因為家裡出了點事，暫時寄宿在孔家。跟你要找的人，沒有直接的血緣關係。', icon: '👪' },
+    { text: '這點很重要：你現在的身分，見不得光。如果被人發現你不是真正的品娟，事情會很麻煩。', icon: '🤫' },
+    { text: '所以打聽你爺爺下落的時候，記住，只能說要找『孔叔叔』，絕對不能說『爺爺』兩個字，懂嗎？', icon: '🤐' },
     { text: '他留下的那張照片，還有那張你看不懂的紙條，就是這趟旅程的起點——那張紙條，其實是他親手寫的任務線索，只是被塵封了太多年，字跡已經模糊了。', icon: '📷' },
     { text: '我的任務，就是陪你把這些線索拼湊回來，找到你爺爺當年在這裡生活的痕跡。', icon: '🎯' },
     { text: '找到之後，你自然就能回到原本的世界。', icon: '🏠' },
@@ -1206,12 +1663,18 @@
     typeText(document.getElementById('dialogue-content-text'), line.text, dialogueTypeState);
   }
 
+  var dialogueFinishing = false;
+
   function advanceDialogue() {
+    if (dialogueFinishing) {
+      return;
+    }
     if (skipTyping(dialogueTypeState)) {
       return;
     }
     playWoodKnock();
     if (dialogueIndex >= dialogueLines.length - 1) {
+      dialogueFinishing = true;
       document.getElementById('dlg-bg').classList.remove('show');
       setBgmZone(0.3, 700);
       setTimeout(function () {
@@ -1310,8 +1773,40 @@
     50:  { top: 47, left: 53 },
     21:  { top: 36, left: 40 },
     8:   { top: 22, left: 65 },
-    3:   { top: 12, left: 82 }
+    3:   { top: 12, left: 82 },
+    92:  { top: 41, left: 58 }
   };
+
+  // 手機橫向時畫面很矮，門牌牆改用這份寬鬆的網格佈局（犧牲跟平面圖的精確對應，
+  // 換取足夠的點擊間距），數字仍維持「越靠近村口越大」的排列邏輯
+  var platePositionsMobile = {
+    141: { top: 15, left: 12 },
+    139: { top: 15, left: 31 },
+    136: { top: 15, left: 50 },
+    118: { top: 15, left: 69 },
+    102: { top: 15, left: 88 },
+    101: { top: 38, left: 12 },
+    97:  { top: 38, left: 31 },
+    79:  { top: 38, left: 50 },
+    77:  { top: 38, left: 69 },
+    71:  { top: 38, left: 88 },
+    68:  { top: 61, left: 12 },
+    65:  { top: 61, left: 31 },
+    57:  { top: 61, left: 50 },
+    50:  { top: 61, left: 69 },
+    21:  { top: 61, left: 88 },
+    8:   { top: 84, left: 12 },
+    3:   { top: 84, left: 31 },
+    92:  { top: 84, left: 50 }
+  };
+
+  function isMobileMapLayout() {
+    return window.matchMedia('(max-height: 500px)').matches;
+  }
+
+  function getPlatePos(num) {
+    return (isMobileMapLayout() ? platePositionsMobile : platePositions)[num];
+  }
 
   var clickedNumbers = {};
   var clickedCount = 0;
@@ -1325,7 +1820,7 @@
     var mapArea = document.getElementById('map-area');
 
     plateNumbers.forEach(function (num, idx) {
-      var pos = platePositions[num];
+      var pos = getPlatePos(num);
       var plate = document.createElement('div');
       plate.className = 'plate ' + (idx % 2 === 0 ? 'red' : 'blue');
       plate.textContent = num;
@@ -1336,6 +1831,23 @@
       });
       mapArea.appendChild(plate);
     });
+  }
+
+  // 第二關完成後，92號正式解鎖顯示在門牌牆上（帶發光「已完成」樣式）
+  function revealPlate92() {
+    if (document.getElementById('plate-92')) return;
+    var mapArea = document.getElementById('map-area');
+    var pos = getPlatePos(92);
+    var plate = document.createElement('div');
+    plate.id = 'plate-92';
+    plate.className = 'plate blue plate-found';
+    plate.textContent = 92;
+    plate.style.top = pos.top + '%';
+    plate.style.left = pos.left + '%';
+    plate.addEventListener('click', function () {
+      onPlateClick(92);
+    });
+    mapArea.appendChild(plate);
   }
 
   function onPlateClick(num) {
@@ -1378,6 +1890,326 @@
   function goToEnding() {
     switchTo('ending');
     bgmMemoryPulse();
+  }
+
+  // ============ 第二關：92號龔家 ============
+
+  function goToLevel2() {
+    switchTo('cutscene2');
+    cutscene2Index = 0;
+    setBgmZone(0.4, 700);
+    renderCutscene2();
+  }
+
+  // ---------- 畫面5：92號門口過渡 ----------
+  var cutscene2Lines = [
+    { text: '往村子深處走了幾步，看到一戶掛著『92』門牌的人家。', icon: '🚶' },
+    { text: '終於找到了！這裡應該就是爺爺的家...', icon: '😳' },
+    { text: '門打開，一位阿姨探出頭：「哎呦，妹妹你找誰呀？」', speaker: 'auntie', icon: '👵' },
+    { text: '我在找...我爺爺的家，門牌是92號沒錯吧？', icon: '❓' },
+    { text: '92號是沒錯，不過我們家姓龔啊，你爺爺姓什麼呀？', speaker: 'auntie', icon: '🤔' }
+  ];
+  var cutscene2Index = 0;
+  var cs2TypeState = createTypeState();
+
+  function renderCutscene2() {
+    var line = cutscene2Lines[cutscene2Index];
+    document.getElementById('cutscene2-icon').textContent = line.icon || '';
+    document.getElementById('cutscene2-text').className =
+      'cutscene-text-box' + (line.speaker === 'auntie' ? ' speaker-auntie' : '');
+    typeText(document.getElementById('cutscene2-content-text'), line.text, cs2TypeState);
+  }
+
+  function advanceCutscene2() {
+    if (skipTyping(cs2TypeState)) {
+      return;
+    }
+    playWoodKnock();
+    if (cutscene2Index >= cutscene2Lines.length - 1) {
+      switchTo('dialogue2');
+      dialogue2Index = 0;
+      setBgmZone(0.35, 700);
+      renderDialogue2();
+      return;
+    }
+    cutscene2Index++;
+    renderCutscene2();
+  }
+
+  document.getElementById('screen-cutscene2').addEventListener('click', function () {
+    if (currentScreen !== 'cutscene2') return;
+    advanceCutscene2();
+  });
+
+  // ---------- 畫面6：龔家對話（333與阿姨交錯） ----------
+  var dialogue2Lines = [
+    { speaker: 'auntie', text: '喔！你說的那個人啊，我知道，他跟我先生感情很好，常常來我們家串門子呢。', icon: '😊' },
+    { speaker: 'auntie', text: '不過他家不在這，是在更裡面，你再往前走走就是了。', icon: '👉' },
+    { speaker: 'auntie', text: '對了，妹妹，你等等，我想起一件事——你爺爺以前常跟我們家孩子一起在牆角那邊玩，好像刻了什麼東西在木板上。', icon: '💭' },
+    { speaker: '333', text: '看來這裡藏著一條重要的線索，要不要幫龔家阿姨整理一下屋子，順便找找看？', icon: '🔍' },
+    { speaker: 'auntie', text: '哎呀是啊，我們家孩子多，屋子亂得很，你要是能幫忙挪一挪家具，我就感激不盡了！', icon: '🙏' }
+  ];
+  var dialogue2Index = 0;
+  var dialogue2TypeState = createTypeState();
+
+  function renderDialogue2() {
+    var line = dialogue2Lines[dialogue2Index];
+    var isAuntie = line.speaker === 'auntie';
+    var avatarImg = document.getElementById('dlg2-avatar-img');
+    avatarImg.style.display = '';
+    avatarImg.src = isAuntie ? 'avatar_gong_auntie.png' : 'avatar_333.png';
+    document.getElementById('avatar-333-wrap-2').className = 'dlg2-avatar-wrap' + (isAuntie ? ' auntie' : '');
+    var nameEl = document.getElementById('dlg2-name');
+    nameEl.textContent = isAuntie ? '龔家阿姨' : '引導系統 333';
+    nameEl.className = 'dialogue-name' + (isAuntie ? ' speaker-auntie' : '');
+    document.getElementById('dialogue2-icon').textContent = line.icon || '';
+    typeText(document.getElementById('dialogue2-content-text'), line.text, dialogue2TypeState);
+  }
+
+  function advanceDialogue2() {
+    if (skipTyping(dialogue2TypeState)) {
+      return;
+    }
+    playWoodKnock();
+    if (dialogue2Index >= dialogue2Lines.length - 1) {
+      switchTo('puzzle');
+      initPuzzle();
+      return;
+    }
+    dialogue2Index++;
+    renderDialogue2();
+  }
+
+  document.getElementById('screen-dialogue2').addEventListener('click', function () {
+    if (currentScreen !== 'dialogue2') return;
+    advanceDialogue2();
+  });
+
+  // ---------- 畫面7：滑行式方塊謎題（點選方塊 + 方向鍵，滑到底才停） ----------
+  var PZ_COLS = 5;
+  var PZ_ROWS = 5;
+  var PZ_CELL = 60;
+  var PZ_EXIT = { col: 2, row: 4 };
+
+  var puzzleBlocks = [];
+  var puzzleStage = 1;
+  var puzzleBusy = false;
+  var puzzleSelectedId = null;
+
+  function pzStage1Blocks() {
+    return [
+      { id: 'box', col: 2, row: 0, label: '木箱', cls: 'block-box', isTarget: true },
+      { id: 'wardrobe', col: 2, row: 2, label: '衣櫃', cls: 'block-wardrobe' }
+    ];
+  }
+
+  function pzStage2Blocks() {
+    return [
+      { id: 'box', col: 0, row: 0, label: '木箱', cls: 'block-box', isTarget: true },
+      { id: 'bed', col: 2, row: 0, label: '床', cls: 'block-bed' },
+      { id: 'wardrobe', col: 3, row: 4, label: '衣櫃', cls: 'block-wardrobe' },
+      { id: 'toy1', col: 4, row: 0, label: '玩具', cls: 'block-toy' }
+    ];
+  }
+
+  function pzStage3Blocks() {
+    return [
+      { id: 'box', col: 4, row: 0, label: '木箱', cls: 'block-box', isTarget: true },
+      { id: 'bunkbed', col: 2, row: 1, label: '雙層床', cls: 'block-bunkbed' },
+      { id: 'wardrobe', col: 0, row: 3, label: '衣櫃', cls: 'block-wardrobe' },
+      { id: 'toy1', col: 4, row: 4, label: '玩具', cls: 'block-toy' },
+      { id: 'toy2', col: 3, row: 4, label: '玩具', cls: 'block-toy' }
+    ];
+  }
+
+  function pzOccupied(excludeId) {
+    var occ = {};
+    puzzleBlocks.forEach(function (b) {
+      if (b.id === excludeId) return;
+      occ[b.col + ',' + b.row] = true;
+    });
+    return occ;
+  }
+
+  function pzCanPlace(col, row, occ) {
+    if (col < 0 || row < 0 || col >= PZ_COLS || row >= PZ_ROWS) return false;
+    return !occ[col + ',' + row];
+  }
+
+  function renderPuzzleBoard() {
+    var board = document.getElementById('puzzle-board');
+    board.innerHTML = '';
+
+    var exitEl = document.createElement('div');
+    exitEl.className = 'puzzle-exit-cell';
+    exitEl.style.left = (PZ_EXIT.col * PZ_CELL) + 'px';
+    exitEl.style.top = (PZ_EXIT.row * PZ_CELL) + 'px';
+    board.appendChild(exitEl);
+
+    puzzleBlocks.forEach(function (b) {
+      var el = document.createElement('div');
+      el.className = 'puzzle-block ' + b.cls + (b.id === puzzleSelectedId ? ' selected' : '');
+      el.textContent = b.label;
+      el.dataset.id = b.id;
+      el.style.width = PZ_CELL + 'px';
+      el.style.height = PZ_CELL + 'px';
+      el.style.left = (b.col * PZ_CELL) + 'px';
+      el.style.top = (b.row * PZ_CELL) + 'px';
+      el.addEventListener('click', function () { selectPuzzleBlock(b.id); });
+      board.appendChild(el);
+    });
+  }
+
+  function selectPuzzleBlock(id) {
+    if (puzzleBusy) return;
+    puzzleSelectedId = (puzzleSelectedId === id) ? null : id;
+    var els = document.querySelectorAll('#puzzle-board .puzzle-block');
+    for (var i = 0; i < els.length; i++) {
+      els[i].classList.toggle('selected', els[i].dataset.id === puzzleSelectedId);
+    }
+  }
+
+  function slideSelected(dCol, dRow) {
+    if (puzzleBusy || !puzzleSelectedId) return;
+    var block = puzzleBlocks.filter(function (b) { return b.id === puzzleSelectedId; })[0];
+    if (!block) return;
+
+    var occ = pzOccupied(block.id);
+    var col = block.col;
+    var row = block.row;
+    while (pzCanPlace(col + dCol, row + dRow, occ)) {
+      col += dCol;
+      row += dRow;
+    }
+
+    var moved = (col !== block.col || row !== block.row);
+    block.col = col;
+    block.row = row;
+
+    var el = document.querySelector('#puzzle-board .puzzle-block[data-id="' + block.id + '"]');
+    if (el) {
+      el.style.left = (col * PZ_CELL) + 'px';
+      el.style.top = (row * PZ_CELL) + 'px';
+    }
+
+    if (moved) {
+      playWoodKnock();
+      if (block.isTarget && col === PZ_EXIT.col && row === PZ_EXIT.row) {
+        onStageBoxReachedExit();
+      }
+    }
+  }
+
+  function showPuzzleToast(msg) {
+    var toast = document.getElementById('puzzle-toast');
+    toast.textContent = msg;
+    toast.classList.add('show');
+  }
+
+  function hidePuzzleToast() {
+    document.getElementById('puzzle-toast').classList.remove('show');
+  }
+
+  function onStageBoxReachedExit() {
+    puzzleBusy = true;
+    puzzleSelectedId = null;
+    var boxEl = document.querySelector('#puzzle-board .puzzle-block[data-id="box"]');
+    if (boxEl) {
+      boxEl.classList.remove('selected');
+      boxEl.classList.add('flash');
+    }
+    showPuzzleToast('第 ' + puzzleStage + ' 階段完成！');
+    setTimeout(function () {
+      if (puzzleStage === 1) {
+        showPuzzleToast('這家後來又添了孩子，家具更多了...');
+        setTimeout(function () { startPuzzleStage(2); }, 1600);
+      } else if (puzzleStage === 2) {
+        showPuzzleToast('還有孩子們的玩具堆在角落，也要一起挪開...');
+        setTimeout(function () { startPuzzleStage(3); }, 1600);
+      } else {
+        finishPuzzle();
+      }
+    }, 900);
+  }
+
+  function startPuzzleStage(stage) {
+    puzzleStage = stage;
+    puzzleSelectedId = null;
+    document.getElementById('puzzle-stage-label').textContent = '第 ' + stage + ' / 3 階段';
+    hidePuzzleToast();
+    puzzleBlocks = stage === 1 ? pzStage1Blocks() : stage === 2 ? pzStage2Blocks() : pzStage3Blocks();
+    renderPuzzleBoard();
+    puzzleBusy = false;
+  }
+
+  function restartPuzzleStage() {
+    if (currentScreen !== 'puzzle' || puzzleBusy) return;
+    startPuzzleStage(puzzleStage);
+  }
+
+  function finishPuzzle() {
+    var board = document.getElementById('puzzle-board');
+    board.classList.add('fadeout');
+    setTimeout(function () {
+      switchTo('reveal');
+      revealIndex = 0;
+      setBgmZone(0.4, 700);
+      renderReveal();
+      document.getElementById('reveal-img').classList.add('show');
+    }, 700);
+  }
+
+  function initPuzzle() {
+    setBgmZone(0.15, 700);
+    document.getElementById('puzzle-board').classList.remove('fadeout');
+    startPuzzleStage(1);
+  }
+
+  // ---------- 畫面8：發現線索 ----------
+  var revealLines = [
+    { text: '木箱後面的牆角，露出一塊鬆動的木板。', icon: '🧱' },
+    { text: '上面刻著一個名字，筆跡稚嫩，看起來是小孩子刻的。', icon: '✏️' },
+    { text: '這個名字...我好像在爺爺的舊相簿裡看過。', icon: '📖' },
+    { text: '難道，這就是爺爺小時候的小名？', icon: '❓' },
+    { text: '看來你越來越接近真相了。爺爺真正的家，還在更裡面，我們繼續走吧。', icon: '🧭' }
+  ];
+  var revealIndex = 0;
+  var revealTypeState = createTypeState();
+
+  function renderReveal() {
+    var line = revealLines[revealIndex];
+    document.getElementById('reveal-icon').textContent = line.icon || '';
+    typeText(document.getElementById('reveal-content-text'), line.text, revealTypeState);
+  }
+
+  function advanceReveal() {
+    if (skipTyping(revealTypeState)) {
+      return;
+    }
+    playWoodKnock();
+    if (revealIndex >= revealLines.length - 1) {
+      document.getElementById('reveal-continue-hint').style.display = 'none';
+      document.getElementById('reveal-fragment-icon').style.display = 'block';
+      document.getElementById('reveal-fragment-label').style.display = 'block';
+      document.getElementById('reveal-continue-btn').style.display = 'inline-block';
+      bgmMemoryPulse();
+      return;
+    }
+    revealIndex++;
+    renderReveal();
+  }
+
+  document.getElementById('screen-reveal').addEventListener('click', function (e) {
+    if (currentScreen !== 'reveal') return;
+    if (e.target && e.target.id === 'reveal-continue-btn') return;
+    advanceReveal();
+  });
+
+  function finishLevel2() {
+    switchTo('map');
+    revealPlate92();
+    document.getElementById('hint-text').textContent = '第二關 完，後續關卡開發中...';
+    setBgmZone(0.3, 700);
   }
 </script>
 
