@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>憲光二村：門牌故事</title>
+<!--
+  =========================================================
+  憲光二村：門牌故事 — 遊戲化眷村體驗（畢業論文用原型）
+
+  目前完成的畫面清單（currentScreen 對應值）：
+    0. cover       封面畫面（標題、暱稱輸入、門牌造型「開始遊戲」按鈕）
+    1. cutscene1   開場過場（跌進照片 / 附身橋段）
+    2. dialogue    333系統教學對話
+    3. map         畫面3：探索地圖／門牌迷宮（本關核心玩法）
+    4. ending      畫面4：小結局過場（第一關 完）
+
+  圖片檔案（請放在與本 HTML 同一資料夾）：
+    cover_title.png           封面背景圖（畫面0）
+    bg_gate.png                門牌牆背景（畫面3）
+    avatar_333.png              333 系統頭像（畫面2）
+    avatar_xiaojuan.png         小娟立繪（畫面1，第11句起 / 第2幕前景）
+    scene_grandpa_room.png      爺爺房間場景圖（畫面1，第4~7句淡入淡出）
+    photo_old.png               老照片特寫（畫面1，第5~7句淡入，第8句閃白時淡出）
+    scene_alley_fall.png        跌落後的巷弄背景（畫面1，第10句起鋪滿背景直到畫面1結束）
+    scene_confused_hands.png    疑惑地看著自己的手（畫面1，第12句置中疊加顯示）
+    bg_333_dialogue.png         333系統對話背景（畫面2，從開始鋪滿到進入畫面3前淡出）
+  音檔：bgm_main.mp3（背景音樂，loop播放，音量依劇情漸變）
+  所有 <img>／<audio> 皆有 onerror 容錯，缺檔不會卡住流程。
+
+  之後擴充建議：
+    - 第二關可以新增 currentScreen = 'chapter2' 並在 showScreen() 註冊
+    - 若要存檔/讀取進度，可在 switchTo() 內加入 localStorage
+  =========================================================
+-->
+<style>
+  :root {
+    --warm-bg: #f3e6d0;
+    --warm-brown: #8a5a34;
+    --dark-panel: rgba(30, 22, 14, 0.85);
+    --accent-gold: #f0c419;
+    --accent-red: #b03b2e;
+    --accent-blue: #1f3a5f;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100vh;
+    background: #1a140d;
+    font-family: "PingFang TC", "Microsoft JhengHei", "Heiti TC", sans-serif;
+    color: #2b1e12;
+    overflow: hidden;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 12px;
+  }
+
+  /* 遊戲畫面固定為橫向長方形（16:9），置中並自動縮放以塞進視窗 */
+  #game-root {
+    position: relative;
+    width: min(96vw, calc(96vh * 16 / 9));
+    height: min(96vh, calc(96vw * 9 / 16));
+    max-width: 1100px;
+    background: var(--warm-bg);
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 0 28px rgba(0,0,0,0.45);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .screen {
+    display: none;
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+    position: relative;
+  }
+
+  .screen.active {
+    display: flex;
+  }
+
+  /* 手機直向時，提示玩家旋轉為橫向 */
+  #rotate-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: #1a140d;
+    color: #f3e6d0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    text-align: center;
+    padding: 24px;
+    z-index: 999;
+  }
+
+  #rotate-overlay .rotate-icon {
+    font-size: 3rem;
+    animation: rotate-hint 1.6s infinite ease-in-out;
+  }
+
+  #rotate-overlay p {
+    line-height: 1.7;
+    max-width: 260px;
+  }
+
+  @keyframes rotate-hint {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(90deg); }
+  }
+
+  @media (orientation: portrait) and (max-width: 900px) {
+    #game-root {
+      display: none !important;
+    }
+    #rotate-overlay {
+      display: flex;
+    }
+  }
+
+  /* 靜音切換鈕，固定在遊戲畫面右上角，不屬於任何 .screen，點擊不會觸發該畫面的換句邏輯 */
+  #mute-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 50;
+  }
+
+  /* ---------- 畫面0：封面 ---------- */
+  #screen-cover {
+    background-color: #1a140d;
+    justify-content: center;
+    align-items: center;
+    padding: 32px;
+  }
+
+  #cover-bg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+  }
+
+  #cover-shade {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(180deg, rgba(10,8,6,0.15) 0%, rgba(10,8,6,0.65) 100%);
+    z-index: 1;
+  }
+
+  #cover-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .cover-title-main {
+    font-size: 32px;
+    font-weight: bold;
+    color: #ffffff;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85), 0 0 18px rgba(0, 0, 0, 0.6);
+    letter-spacing: 4px;
+    margin: 0;
+  }
+
+  .cover-title-sub {
+    font-size: 22px;
+    color: var(--accent-gold);
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85);
+    letter-spacing: 2px;
+    margin: 4px 0 0;
+  }
+
+  #cover-nickname {
+    width: 220px;
+    padding: 9px 14px;
+    font-size: 0.95rem;
+    text-align: center;
+    color: #2b1e12;
+    background: rgba(243, 230, 208, 0.92);
+    border: none;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    font-family: inherit;
+  }
+
+  #cover-nickname::placeholder {
+    color: #8a5a34;
+  }
+
+  #cover-start-btn {
+    width: 180px;
+    height: 70px;
+    margin-top: 8px;
+    background: #2c3e50;
+    color: #fff;
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    border: 1px solid rgba(0, 0, 0, 0.5);
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow:
+      inset 0 0 0 2px rgba(255, 255, 255, 0.18),
+      inset 2px 2px 5px rgba(255, 255, 255, 0.12),
+      inset -2px -2px 5px rgba(0, 0, 0, 0.35),
+      0 4px 12px rgba(0, 0, 0, 0.5);
+    transition: transform 0.15s ease;
+    font-family: inherit;
+  }
+
+  #cover-start-btn:hover {
+    transform: scale(1.05);
+  }
+
+  #cover-start-btn:active {
+    transform: scale(0.98);
+  }
+
+  /* ---------- 畫面1：開場過場 ---------- */
+  #screen-cutscene1 {
+    background-color: #3d3226;
+    color: #f2f2f2;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 24px 44px 36px;
+    cursor: pointer;
+    text-align: center;
+    transition: opacity 0.6s ease, background-color 0.8s ease;
+    opacity: 1;
+  }
+
+  #screen-cutscene1.cs1-fadeout {
+    opacity: 0;
+  }
+
+  /* 背景隨情緒漸變：開場暖棕色 -> 閃白瞬間 -> 跌落後冷灰藍色 */
+  #screen-cutscene1.cs1-mood-cool {
+    background-color: #2b3038;
+  }
+
+  #screen-cutscene1.cs1-mood-flash {
+    background-color: #ffffff;
+  }
+
+  /* 全螢幕鋪滿的場景背景（爺爺房間 / 老照片特寫 / 疑惑的手 / 跌落後的巷弄），共用同一種鋪法 */
+  #cs1-alley-bg,
+  #cs1-img-room,
+  #cs1-img-photo,
+  #cs1-img-hands {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.8s ease;
+  }
+
+  #cs1-alley-bg.show,
+  #cs1-img-room.show,
+  #cs1-img-photo.show,
+  #cs1-img-hands.show {
+    opacity: 1;
+  }
+
+  /* 小娟前景立繪，置中疊加、獨立淡入淡出 */
+  #cs1-image-stage {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .cs1-float-img {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: opacity 0.7s ease;
+  }
+
+  .cs1-float-img.show {
+    opacity: 1;
+  }
+
+  #cs1-img-avatarfg {
+    width: 30%;
+    max-width: 320px;
+    top: 62%;
+    filter: drop-shadow(0 8px 14px rgba(0,0,0,0.5));
+  }
+
+  #cutscene1-flash {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #ffffff;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease;
+    z-index: 5;
+  }
+
+  #cutscene1-flash.flash-on {
+    opacity: 1;
+  }
+
+  /* 第13句「遠方喊小娟」的白色波紋提示，錨定在畫面上緣 */
+  #cs1-ripple {
+    position: absolute;
+    top: 8%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    z-index: 3;
+    pointer-events: none;
+  }
+
+  #cs1-ripple span {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 36px;
+    height: 36px;
+    margin: -18px 0 0 -18px;
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    border-radius: 50%;
+    opacity: 0;
+  }
+
+  #cs1-ripple.active span {
+    animation: cs1-ripple-anim 1.3s ease-out;
+  }
+
+  #cs1-ripple.active span:nth-child(2) {
+    animation-delay: 0.25s;
+  }
+
+  #cs1-ripple.active span:nth-child(3) {
+    animation-delay: 0.5s;
+  }
+
+  @keyframes cs1-ripple-anim {
+    0% { transform: scale(0.4); opacity: 0.9; }
+    100% { transform: scale(7); opacity: 0; }
+  }
+
+  #cutscene1-content {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+  }
+
+  .cutscene-text-box {
+    width: fit-content;
+    max-width: 100%;
+    margin: 0 auto;
+    font-size: 1.05rem;
+    line-height: 1.7;
+    min-height: 46px;
+    white-space: normal;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 22px;
+    background: rgba(10, 8, 6, 0.6);
+    border-radius: 10px;
+  }
+
+  .cutscene-text-box.is-empty {
+    background: transparent;
+  }
+
+  .cutscene-text-box.speaker-shout {
+    color: #a8e6a1;
+  }
+
+  .line-icon {
+    flex-shrink: 0;
+    font-size: 1.1em;
+    line-height: 1;
+  }
+
+  .continue-hint {
+    margin-top: 22px;
+    font-size: 0.85rem;
+    opacity: 0.6;
+    animation: blink 1.4s infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 0.25; }
+    50% { opacity: 0.8; }
+  }
+
+  /* ---------- 畫面2：333系統對話 ---------- */
+  #screen-dialogue {
+    background: linear-gradient(180deg, #d9c19a 0%, #c9a877 100%);
+    justify-content: flex-end;
+    padding: 20px;
+    cursor: pointer;
+  }
+
+  #dlg-bg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.9s ease;
+  }
+
+  #dlg-bg.show {
+    opacity: 1;
+  }
+
+  .dialogue-box {
+    background: var(--dark-panel);
+    color: #fff;
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 24px;
+    min-height: 110px;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .dialogue-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  #avatar-333-wrap {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: var(--accent-gold);
+    box-shadow: 0 0 10px 2px rgba(240, 196, 25, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: avatar-333-pulse 1.6s ease-in-out infinite;
+  }
+
+  @keyframes avatar-333-pulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 10px 2px rgba(240, 196, 25, 0.7); }
+    50% { transform: scale(1.1); box-shadow: 0 0 16px 5px rgba(240, 196, 25, 0.9); }
+  }
+
+  #avatar-333-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .dialogue-name {
+    font-size: 0.85rem;
+    color: var(--accent-gold);
+    font-weight: bold;
+  }
+
+  .dialogue-text {
+    font-size: 1rem;
+    line-height: 1.7;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .dialogue-hint {
+    align-self: flex-end;
+    font-size: 0.75rem;
+    opacity: 0.6;
+    animation: blink 1.4s infinite;
+  }
+
+  /* ---------- 畫面3：探索地圖 ---------- */
+  #screen-map {
+    background: var(--warm-bg);
+    padding: 10px 14px;
+    gap: 8px;
+  }
+
+  .map-title {
+    text-align: center;
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: var(--warm-brown);
+    position: relative;
+    padding: 6px 0;
+  }
+
+  #quest-btn {
+    position: absolute;
+    right: 0;
+    top: 2px;
+    background: var(--accent-blue);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+
+  #deeper-btn {
+    display: none;
+    margin: 6px auto 0;
+    background: var(--accent-red);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+
+  #map-area {
+    position: relative;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    background-color: #DCC9A8;
+    border: 3px solid var(--warm-brown);
+  }
+
+  #map-area img#bg-gate-img {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+  }
+
+  .plate {
+    position: absolute;
+    min-width: 42px;
+    padding: 4px 6px;
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    z-index: 2;
+    user-select: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.35);
+    transition: transform 0.1s ease;
+  }
+
+  .plate:active {
+    transform: scale(0.92);
+  }
+
+  .plate.red {
+    background: rgba(176, 59, 46, 0.85);
+  }
+
+  .plate.blue {
+    background: rgba(31, 58, 95, 0.85);
+  }
+
+  #map-hint-box {
+    min-height: 54px;
+    background: var(--dark-panel);
+    color: #fff;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  #hint-plate-icon {
+    flex-shrink: 0;
+    width: 30px;
+    height: 20px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent-red) 50%, var(--accent-blue) 50%);
+    border: 1px solid rgba(255,255,255,0.6);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  }
+
+  #hint-text {
+    flex: 1;
+  }
+
+  #quest-modal {
+    display: none;
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 10;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #quest-modal.show {
+    display: flex;
+  }
+
+  #quest-modal-inner {
+    background: #fdf6e6;
+    color: #2b1e12;
+    border-radius: 10px;
+    padding: 18px 20px;
+    max-width: 260px;
+    text-align: center;
+    line-height: 1.7;
+  }
+
+  #quest-modal-inner button {
+    margin-top: 12px;
+    background: var(--warm-brown);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    cursor: pointer;
+  }
+
+  /* ---------- 畫面4：小結局過場 ---------- */
+  #screen-ending {
+    background: #2a1d12;
+    color: #f3e6d0;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 30px;
+    gap: 16px;
+  }
+
+  #screen-ending p {
+    line-height: 1.8;
+    max-width: 320px;
+  }
+
+  .memory-fragment-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ffe9a8, var(--accent-gold));
+    box-shadow: 0 0 16px 4px rgba(240, 196, 25, 0.6);
+    margin: 6px auto;
+  }
+
+  .memory-fragment-label {
+    font-size: 0.9rem;
+    color: var(--accent-gold);
+  }
+
+  .ending-footer {
+    margin-top: 26px;
+    font-size: 0.75rem;
+    opacity: 0.55;
+  }
+</style>
+</head>
+<body>
+
+<div id="rotate-overlay">
+  <div class="rotate-icon">📱</div>
+  <p>請將手機橫向旋轉<br>以獲得最佳遊戲體驗</p>
+</div>
+
+<div id="game-root">
+
+  <audio id="bgm" src="bgm_main.mp3" loop preload="auto" onerror="this._loadFailed=true;"></audio>
+
+  <button id="mute-btn" onclick="toggleSound(event)">🔊</button>
+
+  <!-- 畫面0：封面 -->
+  <div class="screen active" id="screen-cover">
+    <img id="cover-bg" src="cover_title.png" alt=""
+         onerror="this.style.display='none'">
+    <div id="cover-shade"></div>
+    <div id="cover-content">
+      <div>
+        <p class="cover-title-main">憲光二村</p>
+        <p class="cover-title-sub">《門牌故事》</p>
+      </div>
+      <input type="text" id="cover-nickname" placeholder="請輸入你的暱稱（選填）" maxlength="12">
+      <button id="cover-start-btn" onclick="startGameFromCover()">開始遊戲</button>
+    </div>
+  </div>
+
+  <!-- 畫面1：開場過場 -->
+  <div class="screen" id="screen-cutscene1">
+    <img id="cs1-alley-bg" src="scene_alley_fall.png" alt=""
+         onerror="this.style.display='none'">
+    <img id="cs1-img-room" src="scene_grandpa_room.png" alt=""
+         onerror="this.style.display='none'">
+    <img id="cs1-img-photo" src="photo_old.png" alt=""
+         onerror="this.style.display='none'">
+    <img id="cs1-img-hands" src="scene_confused_hands.png" alt=""
+         onerror="this.style.display='none'">
+    <div id="cs1-image-stage">
+      <img id="cs1-img-avatarfg" class="cs1-float-img" src="avatar_xiaojuan.png" alt="小娟"
+           onerror="this.style.display='none'">
+    </div>
+    <div id="cutscene1-flash"></div>
+    <div id="cs1-ripple"><span></span><span></span><span></span></div>
+    <div id="cutscene1-content">
+      <div class="cutscene-text-box" id="cutscene1-text">
+        <span class="line-icon" id="cutscene1-icon"></span>
+        <span id="cutscene1-content-text"></span>
+      </div>
+      <div class="continue-hint">▼ 點擊畫面或按空白鍵繼續</div>
+    </div>
+  </div>
+
+  <!-- 畫面2：333系統對話 -->
+  <div class="screen" id="screen-dialogue">
+    <img id="dlg-bg" src="bg_333_dialogue.png" alt=""
+         onerror="this.style.display='none'">
+    <div class="dialogue-box">
+      <div class="dialogue-header">
+        <div id="avatar-333-wrap">
+          <img id="avatar-333-img" src="avatar_333.png" alt="333"
+               onerror="this.style.display='none'; this.parentElement.classList.add('no-img');">
+        </div>
+        <div class="dialogue-name">引導系統 333</div>
+      </div>
+      <div class="dialogue-text" id="dialogue-text">
+        <span class="line-icon" id="dialogue-icon"></span>
+        <span id="dialogue-content-text"></span>
+      </div>
+      <div class="dialogue-hint">▼ 點擊繼續</div>
+    </div>
+  </div>
+
+  <!-- 畫面3：探索地圖 / 門牌迷宮 -->
+  <div class="screen" id="screen-map">
+    <div class="map-title">
+      憲光二村 村口
+      <button id="quest-btn" onclick="showQuest(event)">查看任務</button>
+    </div>
+
+    <button id="deeper-btn" onclick="goToEnding()">往村子深處走</button>
+
+    <div id="map-area">
+      <img id="bg-gate-img" src="bg_gate.png" alt=""
+           onerror="this.style.display='none';">
+      <!-- 門牌方塊由 JS 動態產生 -->
+    </div>
+
+    <div id="map-hint-box">
+      <div id="hint-plate-icon"></div>
+      <div id="hint-text">點擊門牌牆上的號碼，找找看有沒有線索...</div>
+    </div>
+
+    <div id="quest-modal" onclick="hideQuest(event)">
+      <div id="quest-modal-inner" onclick="event.stopPropagation()">
+        <div style="font-weight:bold; margin-bottom:6px;">目前目標</div>
+        <div>找到爺爺住的 92 號</div>
+        <button onclick="hideQuest(event)">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 畫面4：小結局過場 -->
+  <div class="screen" id="screen-ending">
+    <p>小娟一邊嘀咕、一邊往巷子深處走去...</p>
+    <p>（第一關 完）</p>
+    <div class="memory-fragment-icon"></div>
+    <div class="memory-fragment-label">獲得記憶碎片：門牌的秘密</div>
+    <div class="ending-footer">這是第一關的原型，後續關卡開發中...</div>
+  </div>
+
+</div>
+
+<script>
+  // ============ 全域狀態 ============
+  var currentScreen = 'cover';
+  var playerNickname = '';
+
+  function switchTo(screenName) {
+    currentScreen = screenName;
+    var screens = document.querySelectorAll('.screen');
+    for (var i = 0; i < screens.length; i++) {
+      screens[i].classList.remove('active');
+    }
+    document.getElementById('screen-' + screenName).classList.add('active');
+  }
+
+  // ============ 畫面0：封面 ============
+  function startGameFromCover() {
+    playerNickname = document.getElementById('cover-nickname').value.trim();
+    startBgm();
+    playWoodKnock();
+    switchTo('cutscene1');
+    renderCutscene1();
+  }
+
+  // ============ 音效（純 Web Audio 合成，不需外部音檔） ============
+  var soundEnabled = true;
+  var audioCtx = null;
+
+  function getAudioCtx() {
+    if (!audioCtx) {
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch (e) {
+        audioCtx = null;
+      }
+    }
+    // 瀏覽器的自動播放限制：AudioContext 需在使用者互動後才能 resume，
+    // 這裡每次播放音效前都會嘗試 resume，第一次點擊「繼續」時就會生效
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    return audioCtx;
+  }
+
+  function toggleSound(e) {
+    if (e) e.stopPropagation();
+    soundEnabled = !soundEnabled;
+    document.getElementById('mute-btn').textContent = soundEnabled ? '🔊' : '🔇';
+    if (bgm) bgm.muted = !soundEnabled;
+  }
+
+  // 敲木頭音效：低沉短促的悶響，用於「換下一句」與「點擊門牌」
+  function playWoodKnock() {
+    if (!soundEnabled) return;
+    var ctx = getAudioCtx();
+    if (!ctx) return;
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(120, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.15);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.15);
+  }
+
+  // 333 系統嗡鳴音效：主音 + 8Hz LFO 調變頻率，模擬輕微電流顫動感
+  function play333Buzz() {
+    if (!soundEnabled) return;
+    var ctx = getAudioCtx();
+    if (!ctx) return;
+    var osc = ctx.createOscillator();
+    var lfo = ctx.createOscillator();
+    var lfoGain = ctx.createGain();
+    var gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(220, ctx.currentTime);
+    lfo.type = 'sine';
+    lfo.frequency.setValueAtTime(8, ctx.currentTime);
+    lfoGain.gain.setValueAtTime(10, ctx.currentTime);
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    lfo.start();
+    osc.stop(ctx.currentTime + 0.4);
+    lfo.stop(ctx.currentTime + 0.4);
+  }
+
+  function playAiyoSound() {
+    if (!soundEnabled) return;
+    // 優先用語音合成唸出「哎呀」，瀏覽器不支援時改用短促跌倒音效代替
+    if ('speechSynthesis' in window) {
+      try {
+        var utter = new SpeechSynthesisUtterance('哎呀！');
+        utter.lang = 'zh-TW';
+        utter.rate = 1.1;
+        utter.pitch = 1.3;
+        window.speechSynthesis.speak(utter);
+        return;
+      } catch (e) {}
+    }
+    var ctx = getAudioCtx();
+    if (!ctx) return;
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(500, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.25);
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.3);
+  }
+
+  // ============ 背景音樂（單一音檔 loop 播放，音量依劇情漸變） ============
+  var bgm = document.getElementById('bgm');
+  var bgmStarted = false;
+  var bgmZoneVolume = 0.4;
+  var bgmFadeRAF = null;
+
+  // 用 requestAnimationFrame 在 duration(ms) 內把音量平滑滑到 target，避免瞬間切換
+  function fadeBgmVolume(target, duration) {
+    if (!bgm) return;
+    duration = duration || 700;
+    if (bgmFadeRAF) cancelAnimationFrame(bgmFadeRAF);
+    var startVol = bgm.volume;
+    var startTime = performance.now();
+    function step(now) {
+      var t = Math.max(0, Math.min(1, (now - startTime) / duration));
+      var vol = startVol + (target - startVol) * t;
+      bgm.volume = Math.max(0, Math.min(1, vol));
+      if (t < 1) {
+        bgmFadeRAF = requestAnimationFrame(step);
+      } else {
+        bgmFadeRAF = null;
+      }
+    }
+    bgmFadeRAF = requestAnimationFrame(step);
+  }
+
+  // 切換「關卡音量區」的目標音量：
+  // 畫面1房間段落0.4／跌落後0.25／畫面2對話0.35／探索地圖0.3／
+  // 小遊戲互動畫面0.15（供後續關卡的秤重、拼圖等畫面呼叫）
+  function setBgmZone(target, duration) {
+    bgmZoneVolume = target;
+    fadeBgmVolume(target, duration || 700);
+  }
+
+  // 記憶碎片蒐集瞬間：音量短暫拉高到0.5，持續1秒後淡回原本的關卡音量
+  function bgmMemoryPulse() {
+    var baseline = bgmZoneVolume;
+    fadeBgmVolume(0.5, 500);
+    setTimeout(function () {
+      fadeBgmVolume(baseline, 800);
+    }, 1000);
+  }
+
+  // 瀏覽器自動播放限制：需在使用者第一次互動後才能播放，於畫面1第一次
+  // 點擊「繼續」時呼叫（見 advanceCutscene1）
+  function startBgm() {
+    if (!bgm || bgmStarted) return;
+    bgmStarted = true;
+    bgm.loop = true;
+    bgm.volume = 0.4;
+    bgmZoneVolume = 0.4;
+    var playPromise = bgm.play();
+    if (playPromise && playPromise.catch) {
+      playPromise.catch(function () {});
+    }
+  }
+
+  // ============ 打字機效果（畫面1、畫面2 共用） ============
+  function createTypeState() {
+    return { timer: null, full: '', el: null, done: true };
+  }
+
+  function typeText(el, fullText, state, onDone) {
+    clearInterval(state.timer);
+    state.full = fullText || '';
+    state.el = el;
+    state.done = false;
+    el.textContent = '';
+    if (!state.full) {
+      state.done = true;
+      if (onDone) onDone();
+      return;
+    }
+    var i = 0;
+    state.timer = setInterval(function () {
+      i++;
+      el.textContent = state.full.slice(0, i);
+      if (i >= state.full.length) {
+        clearInterval(state.timer);
+        state.done = true;
+        if (onDone) onDone();
+      }
+    }, 30);
+  }
+
+  // 若文字還在逐字顯示中，點擊時先把整句補完，不直接跳下一句
+  function skipTyping(state) {
+    if (!state.done) {
+      clearInterval(state.timer);
+      if (state.el) state.el.textContent = state.full;
+      state.done = true;
+      return true;
+    }
+    return false;
+  }
+
+  // ============ 畫面1：開場過場 ============
+  // images 可包含：'room'（爺爺房間場景）、'photo'（老照片特寫）、
+  // 'alleyBg'（跌落後的巷弄背景）、'avatarFg'（小娟前景立繪）
+  var cutscene1Lines = [
+    { text: '爺爺上個月過世了，媽媽要我幫忙整理他房間的東西。', speaker: 'self', images: [], icon: '😢' },
+    { text: '大部分都是舊衣服跟藥罐，直到我打開床底下那個上鎖的鐵盒子。', speaker: 'self', images: [], icon: '📦' },
+    { text: '裡面只有一疊老照片，還有一張泛黃的紙，寫著幾個我看不懂的字。', speaker: 'self', images: [], icon: '📷' },
+    { text: '這張照片特別舊，邊角都磨破了，感覺爺爺常常拿出來看。', speaker: 'self', images: ['room'], icon: '🤔' },
+    { text: '', speaker: 'self', images: ['photo'], icon: '' },
+    { text: '咦...這個地方我好像看過？是上次校外教學，老師帶我們去的憲光二村吧？', speaker: 'self', images: ['photo'], icon: '❓' },
+    { text: '照片上髒髒的，我伸手想擦乾淨看仔細一點...', speaker: 'self', images: ['photo'], icon: '🧐' },
+    { text: '', speaker: 'flash', images: [] },
+    { text: '哎呀！', speaker: 'self', images: [], sound: 'aiyo', icon: '❗' },
+    { text: '屁股好痛...地上怎麼是碎石子路？', speaker: 'self', images: ['alleyBg'], icon: '😖' },
+    { text: '咦，我的聲音怎麼變得這麼尖？而且...這件衣服不是我的。', speaker: 'self', images: ['alleyBg', 'avatarFg'], icon: '❓' },
+    { text: '不對，這隻手也不是我的手。我到底...', speaker: 'self', images: ['hands'], icon: '❗' },
+    { text: '遠方傳來一個婦人的聲音：「小娟！叫你不要爬樹，不要爬樹，不要爬樹！你看跌下來了！好危險！不可以再給我做危險動作了，走回家～」', speaker: 'shout', images: ['alleyBg', 'avatarFg'], icon: '📢', ripple: true },
+    { text: '她在叫...我？小娟？可是我的名字也是小娟啊，這是巧合嗎？', speaker: 'self', images: ['alleyBg', 'avatarFg'], icon: '❓' },
+    { text: '等等，這裡的房子、這條巷子，怎麼看起來比校外教學那時候新很多、也乾淨很多...', speaker: 'self', images: ['alleyBg', 'avatarFg'], icon: '🤨' },
+    { text: '我到底發生了什麼事？', speaker: 'self', images: ['alleyBg', 'avatarFg'], icon: '😰' }
+  ];
+  var cutscene1Index = 0;
+  var cs1TypeState = createTypeState();
+
+  var cs1ImageEls = {
+    room: document.getElementById('cs1-img-room'),
+    photo: document.getElementById('cs1-img-photo'),
+    alleyBg: document.getElementById('cs1-alley-bg'),
+    avatarFg: document.getElementById('cs1-img-avatarfg'),
+    hands: document.getElementById('cs1-img-hands')
+  };
+
+  function setCs1Images(images) {
+    Object.keys(cs1ImageEls).forEach(function (key) {
+      var el = cs1ImageEls[key];
+      if (!el) return;
+      if (images.indexOf(key) !== -1) {
+        el.classList.add('show');
+      } else {
+        el.classList.remove('show');
+      }
+    });
+  }
+
+  function setCs1Mood(mood) {
+    var el = document.getElementById('screen-cutscene1');
+    el.classList.remove('cs1-mood-cool', 'cs1-mood-flash');
+    if (mood === 'cool') el.classList.add('cs1-mood-cool');
+    else if (mood === 'flash') el.classList.add('cs1-mood-flash');
+  }
+
+  function triggerCs1Ripple() {
+    var el = document.getElementById('cs1-ripple');
+    el.classList.remove('active');
+    void el.offsetWidth; // 強制 reflow 以便重新觸發動畫
+    el.classList.add('active');
+  }
+
+  function renderCutscene1() {
+    var line = cutscene1Lines[cutscene1Index];
+    var textBox = document.getElementById('cutscene1-text');
+    var contentEl = document.getElementById('cutscene1-content-text');
+    var iconEl = document.getElementById('cutscene1-icon');
+    var flash = document.getElementById('cutscene1-flash');
+
+    if (line.speaker === 'flash') {
+      // 閃白效果：背景瞬間轉白、房間圖／老照片淡出，短暫顯示後自動跳下一句
+      iconEl.textContent = '';
+      contentEl.textContent = '';
+      setCs1Images([]);
+      setCs1Mood('flash');
+      flash.classList.add('flash-on');
+      setTimeout(function () {
+        flash.classList.remove('flash-on');
+        cutscene1Index++;
+        renderCutscene1();
+      }, 350);
+      return;
+    }
+
+    setCs1Mood(cutscene1Index <= 6 ? 'warm' : 'cool');
+    if (cutscene1Index === 8) {
+      // 跌落後場景剛開始：BGM 音量在 0.5 秒內漸弱到 0.25
+      setBgmZone(0.25, 500);
+    }
+
+    iconEl.textContent = line.icon || '';
+    textBox.className = 'cutscene-text-box' +
+      (line.speaker === 'shout' ? ' speaker-shout' : '') +
+      (line.text ? '' : ' is-empty');
+
+    typeText(contentEl, line.text, cs1TypeState);
+
+    setCs1Images(line.images || []);
+
+    if (line.sound === 'aiyo') {
+      playAiyoSound();
+    }
+    if (line.ripple) {
+      triggerCs1Ripple();
+    }
+  }
+
+  function finishCutscene1() {
+    var screenEl = document.getElementById('screen-cutscene1');
+    screenEl.classList.add('cs1-fadeout');
+    setTimeout(function () {
+      screenEl.classList.remove('cs1-fadeout');
+      switchTo('dialogue');
+      document.getElementById('dlg-bg').classList.add('show');
+      play333Buzz();
+      setBgmZone(0.35, 700);
+      renderDialogue();
+    }, 650);
+  }
+
+  function advanceCutscene1() {
+    startBgm();
+    if (skipTyping(cs1TypeState)) {
+      return;
+    }
+    playWoodKnock();
+    if (cutscene1Index >= cutscene1Lines.length - 1) {
+      finishCutscene1();
+      return;
+    }
+    cutscene1Index++;
+    renderCutscene1();
+  }
+
+  document.getElementById('screen-cutscene1').addEventListener('click', function () {
+    if (currentScreen !== 'cutscene1') return;
+    advanceCutscene1();
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.code === 'Space' || e.key === ' ') {
+      e.preventDefault();
+      if (currentScreen === 'cutscene1') advanceCutscene1();
+      else if (currentScreen === 'dialogue') advanceDialogue();
+    }
+  });
+
+  // ============ 畫面2：333系統對話 ============
+  var dialogueLines = [
+    { text: '「嗶——」', icon: '⚡' },
+    { text: '你好，我是引導系統333。', icon: '🤖' },
+    { text: '別緊張，我知道你現在腦中有很多問號，我會盡量解釋清楚。', icon: '💬' },
+    { text: '現在的時間是民國六十幾年，地點是憲光二村——沒錯，就是你校外教學去過的那個地方，只是現在它還沒變成歷史園區，是真的有人住在這裡的樣子。', icon: '📍' },
+    { text: '你現在的身體，屬於一個叫『孔麗娟』的女孩，她本來就住在這裡。', icon: '👤' },
+    { text: '至於你為什麼會在這裡：你爺爺過世前，透過一個特殊的申請管道，用他自己的方式，換來了讓你回到這個年代的機會。', icon: '🗝️' },
+    { text: '他留下的那張照片，還有那張你看不懂的紙條，就是這趟旅程的起點——那張紙條，其實是他親手寫的任務線索，只是被塵封了太多年，字跡已經模糊了。', icon: '📷' },
+    { text: '我的任務，就是陪你把這些線索拼湊回來，找到你爺爺當年在這裡生活的痕跡。', icon: '🎯' },
+    { text: '找到之後，你自然就能回到原本的世界。', icon: '🏠' },
+    { text: '如果你中途想放棄...老實說我不建議，但我會尊重你的選擇。只是這樣一來，你爺爺用盡辦法換來的這個機會，就會白白浪費了。', icon: '⚠️' },
+    { text: '你應該也不希望這樣吧？', icon: '❓' },
+    { text: '好，那我們開始吧。線索的第一步，藏在村口的門牌牆上——你爺爺當年住的地方，門牌號碼是92號，但我提醒你，事情可能沒有你想的那麼簡單。', icon: '🚪' },
+    { text: '走吧，去村口看看。', icon: '👉' }
+  ];
+  var dialogueIndex = 0;
+  var dialogueTypeState = createTypeState();
+
+  function renderDialogue() {
+    var line = dialogueLines[dialogueIndex];
+    document.getElementById('dialogue-icon').textContent = line.icon || '';
+    typeText(document.getElementById('dialogue-content-text'), line.text, dialogueTypeState);
+  }
+
+  function advanceDialogue() {
+    if (skipTyping(dialogueTypeState)) {
+      return;
+    }
+    playWoodKnock();
+    if (dialogueIndex >= dialogueLines.length - 1) {
+      document.getElementById('dlg-bg').classList.remove('show');
+      setBgmZone(0.3, 700);
+      setTimeout(function () {
+        switchTo('map');
+        initMap();
+      }, 500);
+      return;
+    }
+    dialogueIndex++;
+    renderDialogue();
+  }
+
+  document.getElementById('screen-dialogue').addEventListener('click', function () {
+    if (currentScreen !== 'dialogue') return;
+    advanceDialogue();
+  });
+
+  // ============ 畫面3：探索地圖 / 門牌迷宮 ============
+  // 憲光二村文化園區「門牌故事」單元真實資料：房號 -> 故事標題
+  // 92號（爺爺住的地方）刻意保留在資料裡但不放上牆，留待後續關卡使用
+  var houseStories = {
+    3: "我的眷村童年",
+    7: "何時才能買房子？",
+    8: "我能請妳跳支舞嗎？",
+    12: "始終如一的愛",
+    15: "逆轉人生",
+    16: "第一屆村長",
+    18: "當兵是一種使命",
+    20: "我不要嫁給阿兵哥",
+    21: "我是春風少年兄",
+    23: "龜山在哪裡",
+    27: "讓父親以我為傲",
+    28: "從千金化身全能媽媽",
+    29: "我是神射手",
+    32: "我來自華興",
+    34: "你愛的澎湖姑娘",
+    37: "芋仔番薯",
+    38: "魏寶玉的故事",
+    42: "扛起家務的萬能爸爸",
+    43: "不放棄追愛",
+    44: "解憂雜貨店",
+    45: "憲光二村的自治會",
+    50: "坐花轎嫁給你",
+    51: "阿爸幫我洗鞋",
+    57: "時尚婦工隊長",
+    62: "早知道叫她嫁外省人",
+    63: "我家就是美髮廳",
+    65: "老陳臭豆腐",
+    68: "眷村孩子王",
+    69: "難忘中秋節",
+    71: "愛打鼓的老公",
+    73: "老公實在太帥了！",
+    80: "有錢就把村子買下來",
+    82: "賣糧票的歲月",
+    83: "比手畫腳一世情",
+    85: "先生超疼我",
+    86: "帶著家族血淚從軍",
+    88: "憲光第一家臭豆腐",
+    89: "我是司機兼教練",
+    91: "情牽紐約",
+    92: "身兼數職的父親",
+    93: "鐵漢柔情",
+    94: "村裡的女導遊",
+    102: "兒子載我去上班",
+    106: "我的爺爺",
+    107: "新衣被炸了個洞",
+    109: "跟我私奔吧",
+    110: "我家8個小孩",
+    111: "家有滿漢全席",
+    116: "瞞著家人考憲兵",
+    118: "從泰國到中國",
+    121: "從雜貨店到養鴨人家",
+    129: "窮到快被鬼抓走",
+    134: "講話不通沒關係",
+    139: "最年輕的自治會長"
+  };
+
+  var plateNumbers = [101, 139, 118, 65, 102, 3, 79, 141, 77, 21, 71, 136, 50, 97, 68, 57, 8];
+
+  // 依據真實平面圖標註的地標（標語牆/村口、71號、44,45號、30,31號）校準，
+  // 沿著「村口(右下大號) -> 深處(左上小號)」的動線分布門牌座標（單位：% of #map-area）
+  var platePositions = {
+    141: { top: 74, left: 6 },
+    139: { top: 69, left: 11 },
+    136: { top: 64, left: 16 },
+    118: { top: 59, left: 9 },
+    102: { top: 55, left: 14 },
+    101: { top: 46, left: 12 },
+    97:  { top: 50, left: 18 },
+    79:  { top: 53, left: 24 },
+    77:  { top: 50, left: 30 },
+    71:  { top: 45, left: 23 },
+    68:  { top: 52, left: 36 },
+    65:  { top: 50, left: 42 },
+    57:  { top: 53, left: 48 },
+    50:  { top: 47, left: 53 },
+    21:  { top: 36, left: 40 },
+    8:   { top: 22, left: 65 },
+    3:   { top: 12, left: 82 }
+  };
+
+  var clickedNumbers = {};
+  var clickedCount = 0;
+  var ruleHintShown = false;
+  var mapInitialized = false;
+
+  function initMap() {
+    if (mapInitialized) return;
+    mapInitialized = true;
+
+    var mapArea = document.getElementById('map-area');
+
+    plateNumbers.forEach(function (num, idx) {
+      var pos = platePositions[num];
+      var plate = document.createElement('div');
+      plate.className = 'plate ' + (idx % 2 === 0 ? 'red' : 'blue');
+      plate.textContent = num;
+      plate.style.top = pos.top + '%';
+      plate.style.left = pos.left + '%';
+      plate.addEventListener('click', function () {
+        onPlateClick(num);
+      });
+      mapArea.appendChild(plate);
+    });
+  }
+
+  function onPlateClick(num) {
+    playWoodKnock();
+    var hintText = document.getElementById('hint-text');
+    var msg;
+
+    if (houseStories.hasOwnProperty(num)) {
+      msg = num + '號：《' + houseStories[num] + '》——這裡也有個故事，但現在還沒時間細聽…';
+    } else {
+      msg = '這裡也曾經住著人，但小娟還沒打聽到他們的故事…';
+    }
+
+    hintText.textContent = msg;
+
+    if (!clickedNumbers[num]) {
+      clickedNumbers[num] = true;
+      clickedCount++;
+    }
+
+    if (clickedCount >= 3 && !ruleHintShown) {
+      ruleHintShown = true;
+      setTimeout(function () {
+        hintText.textContent = '你有沒有發現，門牌數字有種規律？越靠近村口號碼越大，越裡面反而越小...';
+        document.getElementById('deeper-btn').style.display = 'block';
+      }, 350);
+    }
+  }
+
+  function showQuest(e) {
+    e.stopPropagation();
+    document.getElementById('quest-modal').classList.add('show');
+  }
+
+  function hideQuest(e) {
+    if (e) e.stopPropagation();
+    document.getElementById('quest-modal').classList.remove('show');
+  }
+
+  function goToEnding() {
+    switchTo('ending');
+    bgmMemoryPulse();
+  }
+</script>
+
+</body>
+</html>
