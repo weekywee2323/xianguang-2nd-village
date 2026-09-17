@@ -24,18 +24,19 @@
 
   圖片檔案（請放在與本 HTML 同一資料夾）：
     cover_title.png             封面背景圖（畫面0）
-    bg_gate.png                  門牌牆背景（畫面3）
+    map_village.png              全景平面圖背景（畫面3，object-fit:contain，容器 aspect-ratio 鎖 16:9）
     avatar_333.png                333 系統頭像（畫面2、畫面6）
-    avatar_xiaojuan.png           小娟立繪（畫面1，第11句起 / 第2幕前景）
-    scene_grandpa_room.png        爺爺房間場景圖（畫面1，第4~7句淡入淡出）
-    photo_old.png                 老照片特寫（畫面1，第5~7句淡入，第8句閃白時淡出）
-    scene_alley_fall.png          跌落後的巷弄背景（畫面1，第10句起鋪滿背景直到畫面1結束）
-    scene_confused_hands.png      疑惑地看著自己的手（畫面1，第12句置中疊加顯示）
+    avatar_xiaojuan.png           小娟立繪（畫面1，第10句起 / 第2幕前景）
+    scene_grandpa_room.png        爺爺房間場景圖（畫面1，第4~5句淡入淡出）
+    photo_old.png                 老照片特寫（畫面1，第6句淡入，第7句閃白時淡出）
+    scene_alley_fall.png          跌落後的巷弄背景（畫面1，第9句起鋪滿背景直到畫面1結束）
+    scene_confused_hands.png      疑惑地看著自己的手（畫面1，第11句置中疊加顯示）
     bg_333_dialogue.png           333系統對話背景（畫面2，從開始鋪滿到進入畫面3前淡出）
     bg_gong_exterior.png          92號門口外觀背景（畫面5）
     avatar_gong_auntie.png        龔家阿姨頭像（畫面6）
     bg_gong_house.png             龔家屋內背景（畫面7，拼圖棋盤疊加在上面）
     reveal_carved_name.png        牆角刻字特寫（畫面8）
+  （原本的 bg_gate.png 已不再使用，畫面3改用 map_village.png，保留舊檔不影響流程）
   音檔：bgm_main.mp3（背景音樂，loop播放，音量依劇情漸變）
   所有 <img>／<audio> 皆有 onerror 容錯，缺檔不會卡住流程。
 
@@ -159,6 +160,47 @@
     line-height: 1;
     cursor: pointer;
     z-index: 50;
+  }
+
+  /* 共用彈出視窗（地標熱點／排行榜等預留功能），固定在整個遊戲畫面上方，不屬於任何 .screen */
+  #info-modal {
+    display: none;
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #info-modal.show {
+    display: flex;
+  }
+
+  #info-modal-inner {
+    background: #fdf6e6;
+    color: #2b1e12;
+    border-radius: 10px;
+    padding: 18px 20px;
+    max-width: 260px;
+    text-align: center;
+    line-height: 1.7;
+  }
+
+  #info-modal-title {
+    font-weight: bold;
+    margin-bottom: 6px;
+    color: var(--warm-brown);
+  }
+
+  #info-modal-inner button {
+    margin-top: 12px;
+    background: var(--warm-brown);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    cursor: pointer;
   }
 
   /* ---------- 畫面0：封面 ---------- */
@@ -573,23 +615,28 @@
     cursor: pointer;
   }
 
+  /* 地圖容器：寬高由 JS 的 resizeMapArea() 直接算好寫成 px（見 script），
+     鎖定 16:9（依 map_village.png 實際比例調整），置中在畫面3剩餘的空間裡，
+     熱點座標（百分比）才會在任何螢幕尺寸/瀏覽器下都對齊圖片。
+     這裡的 flex/min-height 只是 JS 尚未執行前的保底樣式，避免容器整個消失。 */
   #map-area {
     position: relative;
-    width: 100%;
     flex: 1;
     min-height: 0;
+    width: 100%;
+    margin: 0 auto;
     border-radius: 10px;
     overflow: hidden;
     background-color: #DCC9A8;
     border: 3px solid var(--warm-brown);
   }
 
-  #map-area img#bg-gate-img {
+  #map-area img#map-bg-img {
     position: absolute;
     top: 0; left: 0;
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
     z-index: 0;
   }
 
@@ -621,7 +668,52 @@
     background: rgba(31, 58, 95, 0.85);
   }
 
-  /* 手機橫向時畫面很矮，門牌牆改用手機專用的寬鬆佈局，並放大點擊區域方便手指點擊 */
+  /* 爺爺的虛擬門牌13號：主線關鍵地點，帶微光效果做區隔 */
+  .plate.plate-virtual {
+    background: rgba(240, 196, 25, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    box-shadow: 0 0 10px 4px rgba(240, 196, 25, 0.65);
+    animation: puzzle-exit-glow 1.6s ease-in-out infinite;
+  }
+
+  /* 地標熱點（標語牆／水井／中央廣場／老榕樹）：圓形圖示+文字標籤，跟門牌的矩形樣式區隔 */
+  .landmark-hotspot {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    cursor: pointer;
+    z-index: 2;
+    user-select: none;
+  }
+
+  .landmark-hotspot .landmark-dot {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(139, 90, 52, 0.85);
+    border: 2px solid #fff6c9;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    transition: transform 0.1s ease;
+  }
+
+  .landmark-hotspot:active .landmark-dot {
+    transform: scale(0.9);
+  }
+
+  .landmark-hotspot .landmark-label {
+    font-size: 0.62rem;
+    font-weight: bold;
+    color: #fff;
+    background: rgba(10, 8, 6, 0.7);
+    padding: 1px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  /* 手機橫向時畫面很矮，放大熱點的點擊區域方便手指點擊 */
   @media (max-height: 500px) {
     .plate {
       min-width: 46px;
@@ -631,6 +723,10 @@
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+    .landmark-hotspot .landmark-dot {
+      width: 30px;
+      height: 30px;
     }
   }
 
@@ -726,7 +822,7 @@
   }
 
   .ending-footer {
-    margin-top: 26px;
+    margin-top: 6px;
     font-size: 0.75rem;
     opacity: 0.55;
   }
@@ -1090,6 +1186,15 @@
 
   <button id="mute-btn" onclick="toggleSound(event)">🔊</button>
 
+  <!-- 共用的簡易彈出視窗，地標熱點／排行榜等預留功能都共用這一個 -->
+  <div id="info-modal" onclick="hideInfoModal(event)">
+    <div id="info-modal-inner" onclick="event.stopPropagation()">
+      <div id="info-modal-title"></div>
+      <div id="info-modal-body"></div>
+      <button onclick="hideInfoModal(event)">關閉</button>
+    </div>
+  </div>
+
   <!-- 畫面0：封面 -->
   <div class="screen active" id="screen-cover">
     <img id="cover-bg" src="cover_title.png" alt=""
@@ -1150,19 +1255,19 @@
     </div>
   </div>
 
-  <!-- 畫面3：探索地圖 / 門牌迷宮 -->
+  <!-- 畫面3：全景平面圖 -->
   <div class="screen" id="screen-map">
     <div class="map-title">
-      憲光二村 村口
+      憲光二村平面圖
       <button id="quest-btn" onclick="showQuest(event)">查看任務</button>
     </div>
 
     <button id="deeper-btn" onclick="goToEnding()">往村子深處走</button>
 
     <div id="map-area">
-      <img id="bg-gate-img" src="bg_gate.png" alt=""
+      <img id="map-bg-img" src="map_village.png" alt=""
            onerror="this.style.display='none';">
-      <!-- 門牌方塊由 JS 動態產生 -->
+      <!-- 門牌／地標熱點由 JS 動態產生 -->
     </div>
 
     <div id="map-hint-box">
@@ -1173,7 +1278,7 @@
     <div id="quest-modal" onclick="hideQuest(event)">
       <div id="quest-modal-inner" onclick="event.stopPropagation()">
         <div style="font-weight:bold; margin-bottom:6px;">目前目標</div>
-        <div>找到爺爺住的 92 號</div>
+        <div>先找到92號，那是目前唯一的線索</div>
         <button onclick="hideQuest(event)">關閉</button>
       </div>
     </div>
@@ -1185,6 +1290,7 @@
     <p>（第一關 完）</p>
     <div class="memory-fragment-icon"></div>
     <div class="memory-fragment-label">獲得記憶碎片：門牌的秘密</div>
+    <div class="ending-footer">這是第一關的原型，後續關卡開發中...</div>
     <button id="ending-continue-btn" onclick="goToLevel2()">繼續</button>
   </div>
 
@@ -1274,6 +1380,18 @@
     document.getElementById('screen-' + screenName).classList.add('active');
   }
 
+  // 共用彈出視窗：地標熱點的「小遊戲製作中」提示、排行榜預留功能等都呼叫這個
+  function showInfoPopup(title, body) {
+    document.getElementById('info-modal-title').textContent = title;
+    document.getElementById('info-modal-body').textContent = body;
+    document.getElementById('info-modal').classList.add('show');
+  }
+
+  function hideInfoModal(e) {
+    if (e) e.stopPropagation();
+    document.getElementById('info-modal').classList.remove('show');
+  }
+
   // ============ 畫面0：封面 ============
   function startGameFromCover() {
     playerNickname = document.getElementById('cover-nickname').value.trim();
@@ -1354,7 +1472,7 @@
     lfo.stop(ctx.currentTime + 0.4);
   }
 
-  function playAiyoSound() {
+  function playOuchSound() {
     if (!soundEnabled) return;
     // 優先用語音合成唸出「哎呀」，瀏覽器不支援時改用短促跌倒音效代替
     if ('speechSynthesis' in window) {
@@ -1380,6 +1498,36 @@
     gain.connect(ctx.destination);
     osc.start();
     osc.stop(ctx.currentTime + 0.3);
+  }
+
+  function playAuntieShout() {
+    if (!soundEnabled) return;
+    // 優先用語音合成唸出「小娟！」，模擬遠方婦人呼喊，瀏覽器不支援時改用合成音效代替
+    if ('speechSynthesis' in window) {
+      try {
+        var utter = new SpeechSynthesisUtterance('小娟！');
+        utter.lang = 'zh-TW';
+        utter.rate = 0.9;
+        utter.pitch = 0.85;
+        window.speechSynthesis.speak(utter);
+        return;
+      } catch (e) {}
+    }
+    var ctx = getAudioCtx();
+    if (!ctx) return;
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(300, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(220, ctx.currentTime + 0.2);
+    osc.frequency.exponentialRampToValueAtTime(340, ctx.currentTime + 0.4);
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.5);
   }
 
   // ============ 背景音樂（單一音檔 loop 播放，音量依劇情漸變） ============
@@ -1486,16 +1634,15 @@
     { text: '大部分都是舊衣服跟藥罐，直到我打開床底下那個上鎖的鐵盒子。', speaker: 'self', images: [], icon: '📦' },
     { text: '裡面只有一疊老照片，還有一張泛黃的紙，寫著幾個我看不懂的字。', speaker: 'self', images: [], icon: '📷' },
     { text: '這張照片特別舊，邊角都磨破了，感覺爺爺常常拿出來看。', speaker: 'self', images: ['room'], icon: '🤔' },
-    { text: '', speaker: 'self', images: ['photo'], icon: '' },
-    { text: '咦...這個地方我好像看過？是上次校外教學，老師帶我們去的憲光二村吧？', speaker: 'self', images: ['photo'], icon: '❓' },
+    { text: '咦...這個地方我好像看過？是上次校外教學，老師帶我們去的憲光二村吧？', speaker: 'self', images: ['room'], icon: '❓' },
     { text: '照片上髒髒的，我伸手想擦乾淨看仔細一點...', speaker: 'self', images: ['photo'], icon: '🧐' },
     { text: '', speaker: 'flash', images: [] },
-    { text: '哎呀！', speaker: 'self', images: [], sound: 'aiyo', icon: '❗' },
+    { text: '哎呀！', speaker: 'self', images: [], sound: 'ouch', icon: '❗' },
     { text: '屁股好痛...地上怎麼是碎石子路？', speaker: 'self', images: ['alleyBg'], icon: '😖' },
     { text: '咦，我的聲音怎麼變得這麼尖？而且...這件衣服不是我的。', speaker: 'self', images: ['alleyBg', 'avatarFg'], icon: '❓' },
     { text: '不對，這隻手也不是我的手。我到底...', speaker: 'self', images: ['hands'], icon: '❗' },
-    { text: '遠方傳來一個婦人的聲音：「小娟！叫你不要爬樹，不要爬樹，不要爬樹！你看跌下來了！好危險！不可以再給我做危險動作了，走回家～」', speaker: 'shout', images: ['alleyBg', 'avatarFg'], icon: '📢', ripple: true },
-    { text: '她在叫...我？小娟？可是我的名字也是小娟啊，這是巧合嗎？', speaker: 'self', images: ['alleyBg', 'avatarFg'], icon: '❓' },
+    { text: '遠方傳來一個婦人的聲音：「小娟！叫你不要爬樹，不要爬樹，不要爬樹！你看跌下來了！好危險！不可以再給我做危險動作了，走回家～」', speaker: 'shout', images: ['alleyBg', 'avatarFg'], icon: '📢', ripple: true, sound: 'auntieShout' },
+    { text: '她在叫...我？不對，是叫『小娟』？可是我的名字也是小娟啊，這是巧合嗎？', speaker: 'self', images: ['alleyBg', 'avatarFg'], icon: '❓' },
     { text: '等等，這裡的房子、這條巷子，怎麼看起來比校外教學那時候新很多、也乾淨很多...', speaker: 'self', images: ['alleyBg', 'avatarFg'], icon: '🤨' },
     { text: '我到底發生了什麼事？', speaker: 'self', images: ['alleyBg', 'avatarFg'], icon: '😰' }
   ];
@@ -1558,8 +1705,8 @@
       return;
     }
 
-    setCs1Mood(cutscene1Index <= 6 ? 'warm' : 'cool');
-    if (cutscene1Index === 8) {
+    setCs1Mood(cutscene1Index <= 5 ? 'warm' : 'cool');
+    if (cutscene1Index === 7) {
       // 跌落後場景剛開始：BGM 音量在 0.5 秒內漸弱到 0.25
       setBgmZone(0.25, 500);
     }
@@ -1573,8 +1720,10 @@
 
     setCs1Images(line.images || []);
 
-    if (line.sound === 'aiyo') {
-      playAiyoSound();
+    if (line.sound === 'ouch') {
+      playOuchSound();
+    } else if (line.sound === 'auntieShout') {
+      playAuntieShout();
     }
     if (line.ripple) {
       triggerCs1Ripple();
@@ -1646,12 +1795,13 @@
     { text: '她是孔家的遠房表妹，因為家裡出了點事，暫時寄宿在孔家。跟你要找的人，沒有直接的血緣關係。', icon: '👪' },
     { text: '這點很重要：你現在的身分，見不得光。如果被人發現你不是真正的品娟，事情會很麻煩。', icon: '🤫' },
     { text: '所以打聽你爺爺下落的時候，記住，只能說要找『孔叔叔』，絕對不能說『爺爺』兩個字，懂嗎？', icon: '🤐' },
+    { text: '至於你為什麼會在這裡：你爺爺過世前，透過一個特殊的申請管道，用他自己的方式，換來了讓你回到這個年代的機會。', icon: '🗝️' },
     { text: '他留下的那張照片，還有那張你看不懂的紙條，就是這趟旅程的起點——那張紙條，其實是他親手寫的任務線索，只是被塵封了太多年，字跡已經模糊了。', icon: '📷' },
     { text: '我的任務，就是陪你把這些線索拼湊回來，找到你爺爺當年在這裡生活的痕跡。', icon: '🎯' },
     { text: '找到之後，你自然就能回到原本的世界。', icon: '🏠' },
     { text: '如果你中途想放棄...老實說我不建議，但我會尊重你的選擇。只是這樣一來，你爺爺用盡辦法換來的這個機會，就會白白浪費了。', icon: '⚠️' },
     { text: '你應該也不希望這樣吧？', icon: '❓' },
-    { text: '好，那我們開始吧。線索的第一步，藏在村口的門牌牆上——你爺爺當年住的地方，門牌號碼是92號，但我提醒你，事情可能沒有你想的那麼簡單。', icon: '🚪' },
+    { text: '好，那我們開始吧。線索的第一步，藏在村口的門牌牆上——先找找看92號，那是我目前唯一能指向的地方，但我提醒你，事情可能沒有你想的那麼簡單。', icon: '🚪' },
     { text: '走吧，去村口看看。', icon: '👉' }
   ];
   var dialogueIndex = 0;
@@ -1692,9 +1842,11 @@
     advanceDialogue();
   });
 
-  // ============ 畫面3：探索地圖 / 門牌迷宮 ============
-  // 憲光二村文化園區「門牌故事」單元真實資料：房號 -> 故事標題
-  // 92號（爺爺住的地方）刻意保留在資料裡但不放上牆，留待後續關卡使用
+  // ============ 畫面3：全景平面圖 ============
+  // 憲光二村文化園區「門牌故事」單元真實資料：房號 -> 故事標題（完整48筆保留不動，
+  // 牆上只挑 11 個熱點顯示，其餘留給之後的支線收集系統用）
+  // 92號（目前唯一線索，並非孔叔叔本人的家）刻意保留在資料裡但初始不放上牆，
+  // 第二關結束後才透過 revealPlate92() 解鎖顯示
   var houseStories = {
     3: "我的眷村童年",
     7: "何時才能買房子？",
@@ -1752,84 +1904,126 @@
     139: "最年輕的自治會長"
   };
 
-  var plateNumbers = [101, 139, 118, 65, 102, 3, 79, 141, 77, 21, 71, 136, 50, 97, 68, 57, 8];
+  // 只保留官方網站確認有故事的11個門牌號碼。座標依實際 map_village.png
+  // 目視校準（沿著「村口(左下大號) -> 深處(右上小號)」的動線分布）
+  var housePlates = [
+    { number: 139, left: 11, top: 69 },
+    { number: 118, left: 9,  top: 59 },
+    { number: 102, left: 14, top: 55 },
+    { number: 71,  left: 23, top: 45 },
+    { number: 68,  left: 36, top: 52 },
+    { number: 65,  left: 42, top: 50 },
+    { number: 57,  left: 48, top: 53 },
+    { number: 50,  left: 53, top: 47 },
+    { number: 21,  left: 40, top: 36 },
+    { number: 8,   left: 65, top: 22 },
+    { number: 3,   left: 82, top: 12 }
+  ];
 
-  // 依據真實平面圖標註的地標（標語牆/村口、71號、44,45號、30,31號）校準，
-  // 沿著「村口(右下大號) -> 深處(左上小號)」的動線分布門牌座標（單位：% of #map-area）
-  var platePositions = {
-    141: { top: 74, left: 6 },
-    139: { top: 69, left: 11 },
-    136: { top: 64, left: 16 },
-    118: { top: 59, left: 9 },
-    102: { top: 55, left: 14 },
-    101: { top: 46, left: 12 },
-    97:  { top: 50, left: 18 },
-    79:  { top: 53, left: 24 },
-    77:  { top: 50, left: 30 },
-    71:  { top: 45, left: 23 },
-    68:  { top: 52, left: 36 },
-    65:  { top: 50, left: 42 },
-    57:  { top: 53, left: 48 },
-    50:  { top: 47, left: 53 },
-    21:  { top: 36, left: 40 },
-    8:   { top: 22, left: 65 },
-    3:   { top: 12, left: 82 },
-    92:  { top: 41, left: 58 }
-  };
+  // 92號的座標（第二關完成後才會顯示在牆上），已依實際圖片校準
+  var platePosition92 = { left: 58, top: 41 };
 
-  // 手機橫向時畫面很矮，門牌牆改用這份寬鬆的網格佈局（犧牲跟平面圖的精確對應，
-  // 換取足夠的點擊間距），數字仍維持「越靠近村口越大」的排列邏輯
-  var platePositionsMobile = {
-    141: { top: 15, left: 12 },
-    139: { top: 15, left: 31 },
-    136: { top: 15, left: 50 },
-    118: { top: 15, left: 69 },
-    102: { top: 15, left: 88 },
-    101: { top: 38, left: 12 },
-    97:  { top: 38, left: 31 },
-    79:  { top: 38, left: 50 },
-    77:  { top: 38, left: 69 },
-    71:  { top: 38, left: 88 },
-    68:  { top: 61, left: 12 },
-    65:  { top: 61, left: 31 },
-    57:  { top: 61, left: 50 },
-    50:  { top: 61, left: 69 },
-    21:  { top: 61, left: 88 },
-    8:   { top: 84, left: 12 },
-    3:   { top: 84, left: 31 },
-    92:  { top: 84, left: 50 }
-  };
+  // 爺爺的虛擬門牌13號：地圖最深處（比3號更靠右上角）的主線關鍵地點
+  var virtualPlate13 = { number: 13, left: 95, top: 6 };
 
-  function isMobileMapLayout() {
-    return window.matchMedia('(max-height: 500px)').matches;
-  }
-
-  function getPlatePos(num) {
-    return (isMobileMapLayout() ? platePositionsMobile : platePositions)[num];
-  }
+  // 四個小遊戲預留地標，座標對齊圖片上原本畫好的地標圖釘位置
+  var landmarkHotspots = [
+    { name: '標語牆', left: 7,  top: 64 },
+    { name: '水井', left: 30, top: 29 },
+    { name: '中央廣場', left: 33, top: 42 },
+    { name: '老榕樹', left: 44, top: 27 }
+  ];
 
   var clickedNumbers = {};
   var clickedCount = 0;
   var ruleHintShown = false;
+  var postHintClicks = 0;
+  var stuckReminderShown = false;
   var mapInitialized = false;
 
+  // 用 JS 算出 #map-area 該有的寬高（px），鎖定 16:9 並置中塞進畫面3剩餘的空間，
+  // 不依賴 CSS aspect-ratio 跟 flex 的組合（避免某些瀏覽器算不出寬度導致容器消失）
+  function resizeMapArea() {
+    var screenMap = document.getElementById('screen-map');
+    var mapArea = document.getElementById('map-area');
+    if (!screenMap || !mapArea) return;
+
+    var title = screenMap.querySelector('.map-title');
+    var hintBox = document.getElementById('map-hint-box');
+    var screenRect = screenMap.getBoundingClientRect();
+    if (screenRect.width <= 0 || screenRect.height <= 0) return;
+
+    var cs = window.getComputedStyle(screenMap);
+    var padLeft = parseFloat(cs.paddingLeft) || 0;
+    var padRight = parseFloat(cs.paddingRight) || 0;
+    var padTop = parseFloat(cs.paddingTop) || 0;
+    var padBottom = parseFloat(cs.paddingBottom) || 0;
+    var gap = parseFloat(cs.rowGap) || parseFloat(cs.gap) || 0;
+
+    var titleH = title ? title.getBoundingClientRect().height : 0;
+    var hintH = hintBox ? hintBox.getBoundingClientRect().height : 0;
+
+    var availableWidth = screenRect.width - padLeft - padRight;
+    var availableHeight = screenRect.height - padTop - padBottom - titleH - hintH - gap * 2;
+    if (availableWidth <= 0 || availableHeight <= 0) return;
+
+    var ratio = 16 / 9;
+    var w = availableWidth;
+    var h = w / ratio;
+    if (h > availableHeight) {
+      h = availableHeight;
+      w = h * ratio;
+    }
+
+    mapArea.style.width = w + 'px';
+    mapArea.style.height = h + 'px';
+  }
+
+  window.addEventListener('resize', function () {
+    if (currentScreen === 'map') resizeMapArea();
+  });
+
+  window.addEventListener('orientationchange', function () {
+    if (currentScreen === 'map') setTimeout(resizeMapArea, 100);
+  });
+
   function initMap() {
+    resizeMapArea();
     if (mapInitialized) return;
     mapInitialized = true;
 
     var mapArea = document.getElementById('map-area');
 
-    plateNumbers.forEach(function (num, idx) {
-      var pos = getPlatePos(num);
+    housePlates.forEach(function (p, idx) {
       var plate = document.createElement('div');
       plate.className = 'plate ' + (idx % 2 === 0 ? 'red' : 'blue');
-      plate.textContent = num;
-      plate.style.top = pos.top + '%';
-      plate.style.left = pos.left + '%';
+      plate.textContent = p.number;
+      plate.style.top = p.top + '%';
+      plate.style.left = p.left + '%';
       plate.addEventListener('click', function () {
-        onPlateClick(num);
+        onPlateClick(p.number);
       });
       mapArea.appendChild(plate);
+    });
+
+    var virtualPlate = document.createElement('div');
+    virtualPlate.className = 'plate blue plate-virtual';
+    virtualPlate.textContent = virtualPlate13.number;
+    virtualPlate.style.top = virtualPlate13.top + '%';
+    virtualPlate.style.left = virtualPlate13.left + '%';
+    virtualPlate.addEventListener('click', onVirtualPlate13Click);
+    mapArea.appendChild(virtualPlate);
+
+    landmarkHotspots.forEach(function (spot) {
+      var hotspot = document.createElement('div');
+      hotspot.className = 'landmark-hotspot';
+      hotspot.style.top = spot.top + '%';
+      hotspot.style.left = spot.left + '%';
+      hotspot.innerHTML = '<div class="landmark-dot"></div><div class="landmark-label">' + spot.name + '</div>';
+      hotspot.addEventListener('click', function () {
+        showInfoPopup(spot.name, '這裡的小遊戲還在製作中，敬請期待！');
+      });
+      mapArea.appendChild(hotspot);
     });
   }
 
@@ -1837,17 +2031,22 @@
   function revealPlate92() {
     if (document.getElementById('plate-92')) return;
     var mapArea = document.getElementById('map-area');
-    var pos = getPlatePos(92);
     var plate = document.createElement('div');
     plate.id = 'plate-92';
     plate.className = 'plate blue plate-found';
     plate.textContent = 92;
-    plate.style.top = pos.top + '%';
-    plate.style.left = pos.left + '%';
+    plate.style.top = platePosition92.top + '%';
+    plate.style.left = platePosition92.left + '%';
     plate.addEventListener('click', function () {
       onPlateClick(92);
     });
     mapArea.appendChild(plate);
+  }
+
+  function onVirtualPlate13Click() {
+    playWoodKnock();
+    document.getElementById('hint-text').textContent =
+      '奇怪，這個門牌是空的，登記簿上好像也查不到這一戶...';
   }
 
   function onPlateClick(num) {
@@ -1863,6 +2062,8 @@
 
     hintText.textContent = msg;
 
+    var wasRuleHintShown = ruleHintShown;
+
     if (!clickedNumbers[num]) {
       clickedNumbers[num] = true;
       clickedCount++;
@@ -1874,6 +2075,19 @@
         hintText.textContent = '你有沒有發現，門牌數字有種規律？越靠近村口號碼越大，越裡面反而越小...';
         document.getElementById('deeper-btn').style.display = 'block';
       }, 350);
+      return;
+    }
+
+    // 卡關軟提醒：規律提示出現後，玩家又點擊了2次門牌（不論點哪個），
+    // 且還沒按「往村子深處走」，就額外提醒一次（只觸發一次，避免太吵）
+    if (wasRuleHintShown) {
+      postHintClicks++;
+      if (postHintClicks >= 2 && !stuckReminderShown) {
+        stuckReminderShown = true;
+        setTimeout(function () {
+          hintText.textContent = '小提醒：你已經在這裡繞了好一會兒了，要不要試著往村子深處走走看？';
+        }, 500);
+      }
     }
   }
 
@@ -1904,10 +2118,11 @@
   // ---------- 畫面5：92號門口過渡 ----------
   var cutscene2Lines = [
     { text: '往村子深處走了幾步，看到一戶掛著『92』門牌的人家。', icon: '🚶' },
-    { text: '終於找到了！這裡應該就是爺爺的家...', icon: '😳' },
+    { text: '終於找到了！這裡應該就是...', icon: '😳' },
     { text: '門打開，一位阿姨探出頭：「哎呦，妹妹你找誰呀？」', speaker: 'auntie', icon: '👵' },
-    { text: '我在找...我爺爺的家，門牌是92號沒錯吧？', icon: '❓' },
-    { text: '92號是沒錯，不過我們家姓龔啊，你爺爺姓什麼呀？', speaker: 'auntie', icon: '🤔' }
+    { text: '等等...我要找的人，該怎麼問才不會太奇怪？', icon: '🤔' },
+    { text: '（小娟在心裡盤算）對外只能說是要找孔叔叔，不能說是爺爺...', icon: '🤐' },
+    { text: '阿姨好，我在找...孔叔叔，聽說他住這附近？', icon: '💬' }
   ];
   var cutscene2Index = 0;
   var cs2TypeState = createTypeState();
@@ -1943,9 +2158,9 @@
 
   // ---------- 畫面6：龔家對話（333與阿姨交錯） ----------
   var dialogue2Lines = [
+    { speaker: 'auntie', text: '92號是我們家啊，不過我們家姓龔，你說的孔叔叔啊——他家不在這，是在更裡面，你再往前走走就是了。', icon: '🏠' },
     { speaker: 'auntie', text: '喔！你說的那個人啊，我知道，他跟我先生感情很好，常常來我們家串門子呢。', icon: '😊' },
-    { speaker: 'auntie', text: '不過他家不在這，是在更裡面，你再往前走走就是了。', icon: '👉' },
-    { speaker: 'auntie', text: '對了，妹妹，你等等，我想起一件事——你爺爺以前常跟我們家孩子一起在牆角那邊玩，好像刻了什麼東西在木板上。', icon: '💭' },
+    { speaker: 'auntie', text: '對了，妹妹，你等等，我想起一件事——你孔叔叔以前常跟我們家孩子一起在牆角那邊玩，好像刻了什麼東西在木板上。', icon: '💭' },
     { speaker: '333', text: '看來這裡藏著一條重要的線索，要不要幫龔家阿姨整理一下屋子，順便找找看？', icon: '🔍' },
     { speaker: 'auntie', text: '哎呀是啊，我們家孩子多，屋子亂得很，你要是能幫忙挪一挪家具，我就感激不盡了！', icon: '🙏' }
   ];
@@ -2168,10 +2383,10 @@
   // ---------- 畫面8：發現線索 ----------
   var revealLines = [
     { text: '木箱後面的牆角，露出一塊鬆動的木板。', icon: '🧱' },
-    { text: '上面刻著一個名字，筆跡稚嫩，看起來是小孩子刻的。', icon: '✏️' },
+    { text: '上面刻著一個名字，筆跡稚嫩，看起來是小孩子刻的——『山伢』。', icon: '✏️' },
     { text: '這個名字...我好像在爺爺的舊相簿裡看過。', icon: '📖' },
-    { text: '難道，這就是爺爺小時候的小名？', icon: '❓' },
-    { text: '看來你越來越接近真相了。爺爺真正的家，還在更裡面，我們繼續走吧。', icon: '🧭' }
+    { text: '難道，這就是孔叔叔小時候的小名？', icon: '❓' },
+    { text: '看來你越來越接近真相了。他真正的家，還在更裡面，我們繼續走吧。', icon: '🧭' }
   ];
   var revealIndex = 0;
   var revealTypeState = createTypeState();
@@ -2207,6 +2422,7 @@
 
   function finishLevel2() {
     switchTo('map');
+    resizeMapArea();
     revealPlate92();
     document.getElementById('hint-text').textContent = '第二關 完，後續關卡開發中...';
     setBgmZone(0.3, 700);
